@@ -1,3 +1,8 @@
+#Amdidium 
+
+Amdidium is a fork of Nvidium with the intent to refactor it to use AMD specific functions and make it compatible with AMD GPUs. 
+Original Nvidium linked below, when this fork is completed a link to the Amdidium mod will be linked here. 
+
 # Nvidium
 
 [![Modrinth](https://img.shields.io/modrinth/dt/nvidium?logo=modrinth)](https://modrinth.com/mod/nvidium)
