@@ -1,6 +1,6 @@
-package me.cortex.nvidium.mixin.minecraft;
+package me.lordrelentless.amdidium.mixin.minecraft;
 
-import me.cortex.nvidium.Nvidium;
+import me.lordrelentless.amdidium.Amdidium;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.WindowSettings;
 import net.minecraft.client.util.MonitorTracker;
@@ -12,8 +12,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Window.class)
 public class MixinWindow {
-    @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;", shift = At.Shift.AFTER))
-    private void init(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings, String videoMode, String title, CallbackInfo ci) {
-        Nvidium.checkSystemIsCapable();
+
+    @Inject(
+        method = "<init>",
+        at = @At(
+            value = "INVOKE",
+            target = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;",
+            shift = At.Shift.AFTER
+        )
+    )
+    private void init(WindowEventHandler eventHandler,
+                      MonitorTracker monitorTracker,
+                      WindowSettings settings,
+                      String videoMode,
+                      String title,
+                      CallbackInfo ci) {
+
+        Amdidium.checkSystemIsCapable();
     }
 }
