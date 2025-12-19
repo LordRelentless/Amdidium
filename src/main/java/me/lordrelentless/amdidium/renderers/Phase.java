@@ -1,4 +1,4 @@
-package me.cortex.nvidium.renderers;
+package me.lordrelentless.amdidium.renderers;
 
 public abstract class Phase {
 }
