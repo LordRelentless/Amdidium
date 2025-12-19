@@ -1,8 +1,8 @@
-package me.cortex.nvidium.managers;
+package me.lordrelentless.amdidium.managers;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
-import me.cortex.nvidium.sodiumCompat.IRenderSectionExtension;
+import me.lordrelentless.amdidium.sodiumCompat.IRenderSectionExtension;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkUpdateType;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.lang.Thread.MAX_PRIORITY;
 
 public class AsyncOcclusionTracker {
+
     private final OcclusionCuller occlusionCuller;
     private final Thread cullThread;
     private final World world;
@@ -46,53 +47,64 @@ public class AsyncOcclusionTracker {
 
     private volatile int chunkVisibilityCount = 0;
 
-    public AsyncOcclusionTracker(int renderDistance, Long2ReferenceMap<RenderSection> sections, World world, Map<ChunkUpdateType, ArrayDeque<RenderSection>> outputRebuildQueue) {
+    public AsyncOcclusionTracker(int renderDistance,
+                                 Long2ReferenceMap<RenderSection> sections,
+                                 World world,
+                                 Map<ChunkUpdateType, ArrayDeque<RenderSection>> outputRebuildQueue) {
+
         this.occlusionCuller = new OcclusionCuller(sections, world);
         this.cullThread = new Thread(this::run);
         this.cullThread.setName("Cull thread");
         this.cullThread.setPriority(MAX_PRIORITY);
         this.cullThread.start();
-        this.renderDistance = renderDistance * 16f;
 
+        this.renderDistance = renderDistance * 16f;
         this.outputRebuildQueue = outputRebuildQueue;
         this.world = world;
     }
 
     private void run() {
-
         while (running) {
             framesAhead.acquireUninterruptibly();
             if (!running) break;
+
             long startTime = System.currentTimeMillis();
 
-            final boolean animateVisibleSpritesOnly = SodiumClientMod.options().performance.animateOnlyVisibleTextures;
-            //The reason for batching is so that ordering is strongly defined
+            final boolean animateVisibleSpritesOnly =
+                    SodiumClientMod.options().performance.animateOnlyVisibleTextures;
+
             List<RenderSection> chunkUpdates = new ArrayList<>();
             List<RenderSection> blockEntitySections = new ArrayList<>();
-            Set<Sprite> animatedSpriteSet = animateVisibleSpritesOnly?new HashSet<>():null;
+            Set<Sprite> animatedSpriteSet = animateVisibleSpritesOnly ? new HashSet<>() : null;
+
             int[] visibleGeometryCounter = new int[1];
+
             final OcclusionCuller.Visitor visitor = (section, visible) -> {
+
                 if (section.getPendingUpdate() != null && section.getBuildCancellationToken() == null) {
-                    if ((!((IRenderSectionExtension)section).isSubmittedRebuild()) && !((IRenderSectionExtension)section).isSeen()) {//If it is in submission queue or seen dont enqueue
-                        //Set that the section has been seen
-                        ((IRenderSectionExtension)section).isSeen(true);
+                    if (!((IRenderSectionExtension) section).isSubmittedRebuild()
+                            && !((IRenderSectionExtension) section).isSeen()) {
+
+                        ((IRenderSectionExtension) section).isSeen(true);
                         chunkUpdates.add(section);
                     }
                 }
-                if (!visible) {
-                    return;
-                }
 
-                if ((section.getFlags()&(1<<RenderSectionFlags.HAS_BLOCK_GEOMETRY))!=0) {
+                if (!visible) return;
+
+                if ((section.getFlags() & (1 << RenderSectionFlags.HAS_BLOCK_GEOMETRY)) != 0) {
                     visibleGeometryCounter[0]++;
                 }
 
-                if ((section.getFlags()&(1<<RenderSectionFlags.HAS_BLOCK_ENTITIES))!=0 &&
-                        section.getPosition().isWithinDistance(viewport.getChunkCoord(),33)) {//32 rd max chunk distance
+                if ((section.getFlags() & (1 << RenderSectionFlags.HAS_BLOCK_ENTITIES)) != 0 &&
+                        section.getPosition().isWithinDistance(viewport.getChunkCoord(), 33)) {
                     blockEntitySections.add(section);
                 }
-                if (animateVisibleSpritesOnly && (section.getFlags()&(1<<RenderSectionFlags.HAS_ANIMATED_SPRITES)) != 0 &&
-                        section.getPosition().isWithinDistance(viewport.getChunkCoord(),33)) {//32 rd max chunk distance (i.e. only animate sprites up to 32 chunks away)
+
+                if (animateVisibleSpritesOnly &&
+                        (section.getFlags() & (1 << RenderSectionFlags.HAS_ANIMATED_SPRITES)) != 0 &&
+                        section.getPosition().isWithinDistance(viewport.getChunkCoord(), 33)) {
+
                     var animatedSprites = section.getAnimatedSprites();
                     if (animatedSprites != null) {
                         animatedSpriteSet.addAll(List.of(animatedSprites));
@@ -103,8 +115,15 @@ public class AsyncOcclusionTracker {
             frame++;
             float searchDistance = this.getSearchDistance();
             boolean useOcclusionCulling = this.shouldUseOcclusionCulling;
+
             try {
-                this.occlusionCuller.findVisible(visitor, viewport, searchDistance, useOcclusionCulling, frame);
+                this.occlusionCuller.findVisible(
+                        visitor,
+                        viewport,
+                        searchDistance,
+                        useOcclusionCulling,
+                        frame
+                );
             } catch (Throwable e) {
                 System.err.println("Error doing traversal");
                 e.printStackTrace();
@@ -113,36 +132,33 @@ public class AsyncOcclusionTracker {
             if (!chunkUpdates.isEmpty()) {
                 var previous = atomicBfsResult.getAndSet(chunkUpdates);
                 if (previous != null) {
-                    //We need to cleanup our state from a previous iteration
                     for (var section : previous) {
-                        if (section.isDisposed())
-                            continue;
-                        //Reset that it hasnt been seen
+                        if (section.isDisposed()) continue;
                         ((IRenderSectionExtension) section).isSeen(false);
                     }
                 }
             }
+
             this.chunkVisibilityCount = visibleGeometryCounter[0];
             blockEntitySectionsRef.set(blockEntitySections);
-            visibleAnimatedSpritesRef.set(animatedSpriteSet==null?null:animatedSpriteSet.toArray(new Sprite[0]));
+            visibleAnimatedSpritesRef.set(animatedSpriteSet == null ? null : animatedSpriteSet.toArray(new Sprite[0]));
             iterationTimeMillis = System.currentTimeMillis() - startTime;
         }
     }
 
     public final void update(Viewport viewport, Camera camera, boolean spectator) {
         this.shouldUseOcclusionCulling = this.shouldUseOcclusionCulling(camera, spectator);
-
         this.viewport = viewport;
 
-        if (framesAhead.availablePermits() < 5) {//This stops a runaway when the traversal time is greater than frametime
+        if (framesAhead.availablePermits() < 5) {
             framesAhead.release();
         }
 
         var bfsResult = atomicBfsResult.getAndSet(null);
         if (bfsResult != null) {
             for (var section : bfsResult) {
-                if (section.isDisposed())
-                    continue;
+                if (section.isDisposed()) continue;
+
                 var type = section.getPendingUpdate();
                 if (type != null && section.getBuildCancellationToken() == null) {
                     var queue = outputRebuildQueue.get(type);
@@ -151,7 +167,7 @@ public class AsyncOcclusionTracker {
                         queue.add(section);
                     }
                 }
-                //Reset that the section has not been seen (whether its been submitted to the queue or not)
+
                 ((IRenderSectionExtension) section).isSeen(false);
             }
         }
@@ -167,7 +183,6 @@ public class AsyncOcclusionTracker {
         }
     }
 
-
     private float getSearchDistance() {
         return renderDistance;
     }
@@ -179,31 +194,28 @@ public class AsyncOcclusionTracker {
         } else {
             distance = this.getRenderDistance();
         }
-
         return distance;
     }
 
     private boolean shouldUseOcclusionCulling(Camera camera, boolean spectator) {
         BlockPos origin = camera.getBlockPos();
-        boolean useOcclusionCulling;
         if (spectator && this.world.getBlockState(origin).isOpaqueFullCube(this.world, origin)) {
-            useOcclusionCulling = false;
-        } else {
-            useOcclusionCulling = MinecraftClient.getInstance().chunkCullingEnabled;
+            return false;
         }
-
-        return useOcclusionCulling;
+        return MinecraftClient.getInstance().chunkCullingEnabled;
     }
 
     private float getEffectiveRenderDistance() {
         float[] color = RenderSystem.getShaderFogColor();
         float distance = RenderSystem.getShaderFogEnd();
         float renderDistance = this.getRenderDistance();
-        return !MathHelper.approximatelyEquals(color[3], 1.0F) ? renderDistance : Math.min(renderDistance, distance + 0.5F);
+        return !MathHelper.approximatelyEquals(color[3], 1.0F)
+                ? renderDistance
+                : Math.min(renderDistance, distance + 0.5F);
     }
 
     private float getRenderDistance() {
-        return (float)this.renderDistance;
+        return this.renderDistance;
     }
 
     public int getFrame() {
