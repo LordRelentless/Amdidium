@@ -1,4 +1,4 @@
-package me.cortex.nvidium.gl;
+package me.cortex.amdidium.gl;
 
 public interface IResource {
     void delete();
