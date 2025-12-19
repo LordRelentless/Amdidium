@@ -1,20 +1,20 @@
-package me.cortex.nvidium.gl.shader;
+package me.cortex.amdidium.gl.shader;
 
-
-import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
-import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
-import static org.lwjgl.opengl.GL43C.GL_COMPUTE_SHADER;
-import static org.lwjgl.opengl.NVMeshShader.GL_MESH_SHADER_NV;
-import static org.lwjgl.opengl.NVMeshShader.GL_TASK_SHADER_NV;
-
+/**
+ * Backend-agnostic shader stage enumeration.
+ *
+ * Each backend (OpenGL, Vulkan, DirectX) maps these stages to its own API:
+ *
+ *  - OpenGL: GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc.
+ *  - Vulkan: VkShaderStageFlagBits
+ *  - DirectX: D3D12_SHADER_VISIBILITY / pipeline stage slots
+ *
+ * Mesh and task shaders are included for Vulkan/DX12 and for OpenGL ARB_mesh_shader.
+ */
 public enum ShaderType {
-    VERTEX(GL_VERTEX_SHADER),
-    FRAGMENT(GL_FRAGMENT_SHADER),
-    COMPUTE(GL_COMPUTE_SHADER),
-    MESH(GL_MESH_SHADER_NV),
-    TASK(GL_TASK_SHADER_NV);
-    public final int gl;
-    ShaderType(int glEnum) {
-        gl = glEnum;
-    }
+    VERTEX,
+    FRAGMENT,
+    COMPUTE,
+    MESH,
+    TASK;
 }
