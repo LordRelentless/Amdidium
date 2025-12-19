@@ -1,8 +1,8 @@
-package me.cortex.nvidium.sodiumCompat;
+package me.lordrelentless.amdidium.sodiumCompat;
 
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.config.StatisticsLoggingLevel;
-import me.cortex.nvidium.config.TranslucencySortingLevel;
+import me.lordrelentless.amdidium.Amdidium;
+import me.lordrelentless.amdidium.config.StatisticsLoggingLevel;
+import me.lordrelentless.amdidium.config.TranslucencySortingLevel;
 import me.jellysquid.mods.sodium.client.gl.shader.ShaderConstants;
 import me.jellysquid.mods.sodium.client.gl.shader.ShaderParser;
 import net.minecraft.util.Identifier;
@@ -16,26 +16,26 @@ public class ShaderLoader {
 
     public static String parse(Identifier path, Consumer<ShaderConstants.Builder> constantBuilder) {
         var builder = ShaderConstants.builder();
-        if (Nvidium.IS_DEBUG) {
+
+        if (Amdidium.IS_DEBUG) {
             builder.add("DEBUG");
         }
 
-        for (int i = 1; i <= Nvidium.config.statistics_level.ordinal(); i++) {
-            builder.add("STATISTICS_"+StatisticsLoggingLevel.values()[i].name());
+        for (int i = 1; i <= Amdidium.config.statistics_level.ordinal(); i++) {
+            builder.add("STATISTICS_" + StatisticsLoggingLevel.values()[i].name());
         }
 
-
-        for (int i = 1; i <= Nvidium.config.translucency_sorting_level.ordinal(); i++) {
-            builder.add("TRANSLUCENCY_SORTING_"+TranslucencySortingLevel.values()[i].name());
+        for (int i = 1; i <= Amdidium.config.translucency_sorting_level.ordinal(); i++) {
+            builder.add("TRANSLUCENCY_SORTING_" + TranslucencySortingLevel.values()[i].name());
         }
 
-        if (Nvidium.config.render_fog) {
+        if (Amdidium.config.render_fog) {
             builder.add("RENDER_FOG");
         }
 
-        builder.add("TEXTURE_MAX_SCALE", String.valueOf(NvidiumCompactChunkVertex.TEXTURE_MAX_VALUE));
+        builder.add("TEXTURE_MAX_SCALE", String.valueOf(AmdidiumCompactChunkVertex.TEXTURE_MAX_VALUE));
         constantBuilder.accept(builder);
 
-        return ShaderParser.parseShader("#import <"+path.getNamespace()+":"+path.getPath()+">", builder.build());
+        return ShaderParser.parseShader("#import <" + path.getNamespace() + ":" + path.getPath() + ">", builder.build());
     }
 }
