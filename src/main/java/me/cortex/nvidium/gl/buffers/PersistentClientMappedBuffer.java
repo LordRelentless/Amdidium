@@ -1,28 +1,62 @@
-package me.cortex.nvidium.gl.buffers;
+package me.cortex.amdidium.gl.buffers;
 
-
-import me.cortex.nvidium.gl.GlObject;
+import me.cortex.amdidium.gl.GlObject;
 
 import static org.lwjgl.opengl.ARBDirectStateAccess.*;
 import static org.lwjgl.opengl.GL30C.*;
-import static org.lwjgl.opengl.GL44.GL_CLIENT_STORAGE_BIT;
-import static org.lwjgl.opengl.GL44.GL_MAP_PERSISTENT_BIT;
-import static org.lwjgl.opengl.NVShaderBufferLoad.*;
+import static org.lwjgl.opengl.GL44.*;
 
+/**
+ * A persistently mapped CPU-visible buffer.
+ *
+ * This buffer is intended for streaming uploads from the CPU to the GPU.
+ * It is backend-agnostic and works on all OpenGL 4.5+ drivers (AMD, Intel, NVIDIA).
+ *
+ * Vulkan and DirectX backends will provide their own implementations.
+ */
 public class PersistentClientMappedBuffer extends GlObject implements IClientMappedBuffer {
-    public final long addr;
-    public final long size;
+
+    private final long addr;
+    private final long size;
 
     public PersistentClientMappedBuffer(long size) {
         super(glCreateBuffers());
         this.size = size;
-        glNamedBufferStorage(id, size, GL_MAP_PERSISTENT_BIT| (GL_CLIENT_STORAGE_BIT|GL_MAP_WRITE_BIT));
-        addr = nglMapNamedBufferRange(id, 0, size, GL_MAP_PERSISTENT_BIT|(GL_MAP_UNSYNCHRONIZED_BIT|GL_MAP_FLUSH_EXPLICIT_BIT|GL_MAP_WRITE_BIT));
+
+        // Allocate immutable storage with persistent client mapping
+        glNamedBufferStorage(
+                id,
+                size,
+                GL_MAP_PERSISTENT_BIT |
+                GL_MAP_WRITE_BIT |
+                GL_CLIENT_STORAGE_BIT,
+                0
+        );
+
+        // Map the buffer persistently
+        addr = nglMapNamedBufferRange(
+                id,
+                0,
+                size,
+                GL_MAP_PERSISTENT_BIT |
+                GL_MAP_WRITE_BIT |
+                GL_MAP_UNSYNCHRONIZED_BIT |
+                GL_MAP_FLUSH_EXPLICIT_BIT
+        );
+
+        if (addr == 0) {
+            throw new IllegalStateException("Failed to map persistent client buffer");
+        }
     }
 
     @Override
     public long clientAddress() {
         return addr;
+    }
+
+    @Override
+    public long getSize() {
+        return size;
     }
 
     @Override
@@ -34,11 +68,6 @@ public class PersistentClientMappedBuffer extends GlObject implements IClientMap
 
     @Override
     public void free() {
-        this.delete();
-    }
-
-    @Override
-    public long getSize() {
-        return size;
+        delete();
     }
 }
