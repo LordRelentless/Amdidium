@@ -1,49 +1,102 @@
-package me.cortex.nvidium.gl.buffers;
+package me.cortex.amdidium.gl.buffers;
 
+import me.cortex.amdidium.gl.GlObject;
+import me.cortex.amdidium.Amdidium;
+import me.cortex.amdidium.config.AmdidiumConfig;
 
-import me.cortex.nvidium.gl.GlObject;
-
-import static org.lwjgl.opengl.ARBDirectStateAccess.glCreateBuffers;
-import static org.lwjgl.opengl.ARBDirectStateAccess.glNamedBufferStorage;
-import static org.lwjgl.opengl.GL15C.GL_READ_WRITE;
+import static org.lwjgl.opengl.ARBDirectStateAccess.*;
 import static org.lwjgl.opengl.GL15C.glDeleteBuffers;
-import static org.lwjgl.opengl.NVShaderBufferLoad.*;
+import static org.lwjgl.opengl.GL45C.*;
+import static org.lwjgl.opengl.ARBBufferStorage.*;
 
+/**
+ * Backend-agnostic GPU buffer that exposes a device address when supported.
+ *
+ * OpenGL:
+ *   - Uses ARB_buffer_storage for persistent mapping.
+ *   - Uses ARB_buffer_address (if available) for GPU addresses.
+ *
+ * Vulkan / DirectX:
+ *   - Device address is provided by backend-specific implementations.
+ */
 public class DeviceOnlyMappedBuffer extends GlObject implements IDeviceMappedBuffer {
-    public final long size;
-    public final long addr;
+
+    private final long size;
+    private long deviceAddress = 0;
+
     public DeviceOnlyMappedBuffer(long size) {
         super(glCreateBuffers());
         this.size = size;
-        glNamedBufferStorage(id, size, 0);
-        long[] holder = new long[1];
-        glGetNamedBufferParameterui64vNV(id, GL_BUFFER_GPU_ADDRESS_NV, holder);
-        glMakeNamedBufferResidentNV(id, GL_READ_WRITE);
-        addr = holder[0];
-        if (addr == 0) {
-            throw new IllegalStateException();
+
+        // Allocate immutable storage (OpenGL backend)
+        glNamedBufferStorage(id,
+                size,
+                GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT | GL_MAP_READ_BIT | GL_MAP_WRITE_BIT,
+                0
+        );
+
+        // Try to obtain a GPU device address (ARB_buffer_address)
+        if (Amdidium.config.backend == AmdidiumConfig.Backend.OPENGL) {
+            tryAcquireOpenGLDeviceAddress();
         }
+    }
+
+    private void tryAcquireOpenGLDeviceAddress() {
+        // Check if ARB_buffer_address is supported
+        if (!glGetStringiSupported("GL_ARB_buffer_address")) {
+            // No device address available on this backend
+            deviceAddress = 0;
+            return;
+        }
+
+        // Query GPU address
+        long[] out = new long[1];
+        glGetNamedBufferParameterui64vARB(id, GL_BUFFER_GPU_ADDRESS_ARB, out);
+        glMakeNamedBufferResidentARB(id, GL_READ_WRITE);
+
+        deviceAddress = out[0];
+    }
+
+    @Override
+    public long getDeviceAddress() {
+        return deviceAddress;
+    }
+
+    @Override
+    public long getSize() {
+        return size;
     }
 
     @Override
     public void delete() {
         super.free0();
-        glMakeNamedBufferNonResidentNV(id);
+
+        // If ARB_buffer_address was used, make non-resident
+        if (deviceAddress != 0) {
+            try {
+                glMakeNamedBufferNonResidentARB(id);
+            } catch (Throwable ignored) {
+                // Backend may not support ARB_buffer_address
+            }
+        }
+
         glDeleteBuffers(id);
     }
 
     @Override
-    public long getDeviceAddress() {
-        return addr;
-    }
-
-    @Override
     public void free() {
-        this.delete();
+        delete();
     }
 
-    @Override
-    public long getSize() {
-        return this.size;
+    /**
+     * Utility: check if an OpenGL extension is supported.
+     */
+    private static boolean glGetStringiSupported(String ext) {
+        int count = glGetInteger(GL_NUM_EXTENSIONS);
+        for (int i = 0; i < count; i++) {
+            String e = glGetStringi(GL_EXTENSIONS, i);
+            if (ext.equals(e)) return true;
+        }
+        return false;
     }
 }
