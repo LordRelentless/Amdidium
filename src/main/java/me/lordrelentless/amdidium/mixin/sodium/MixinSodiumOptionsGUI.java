@@ -1,9 +1,9 @@
-package me.cortex.nvidium.mixin.sodium;
+package me.lordrelentless.amdidium.mixin.sodium;
 
-import me.cortex.nvidium.NvidiumWorldRenderer;
-import me.cortex.nvidium.config.ConfigGuiBuilder;
-import me.cortex.nvidium.sodiumCompat.INvidiumWorldRendererGetter;
-import me.cortex.nvidium.sodiumCompat.NvidiumOptionFlags;
+import me.lordrelentless.amdidium.AmdidiumWorldRenderer;
+import me.lordrelentless.amdidium.config.ConfigGuiBuilder;
+import me.lordrelentless.amdidium.sodiumCompat.IAmdidiumWorldRendererGetter;
+import me.lordrelentless.amdidium.sodiumCompat.AmdidiumOptionFlags;
 import me.jellysquid.mods.sodium.client.gui.SodiumOptionsGUI;
 import me.jellysquid.mods.sodium.client.gui.options.*;
 import me.jellysquid.mods.sodium.client.gui.options.storage.OptionStorage;
@@ -22,20 +22,42 @@ import java.util.*;
 
 @Mixin(value = SodiumOptionsGUI.class, remap = false)
 public class MixinSodiumOptionsGUI {
-    @Shadow @Final private List<OptionPage> pages;
 
-    @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z", ordinal = 3, shift = At.Shift.AFTER))
-    private void addNvidiumOptions(Screen prevScreen, CallbackInfo ci) {
-        ConfigGuiBuilder.addNvidiumGui(pages);
+    @Shadow @Final
+    private List<OptionPage> pages;
+
+    @Inject(
+        method = "<init>",
+        at = @At(
+            value = "INVOKE",
+            target = "Ljava/util/List;add(Ljava/lang/Object;)Z",
+            ordinal = 3,
+            shift = At.Shift.AFTER
+        )
+    )
+    private void addAmdidiumOptions(Screen prevScreen, CallbackInfo ci) {
+        ConfigGuiBuilder.addAmdidiumGui(pages);
     }
 
-    @Inject(method = "applyChanges", at = @At("RETURN"), locals = LocalCapture.CAPTURE_FAILSOFT)
-    private void applyShaderReload(CallbackInfo ci, HashSet<OptionStorage<?>> dirtyStorages, EnumSet<OptionFlag> flags, MinecraftClient client) {
+    @Inject(
+        method = "applyChanges",
+        at = @At("RETURN"),
+        locals = LocalCapture.CAPTURE_FAILSOFT
+    )
+    private void applyShaderReload(CallbackInfo ci,
+                                   HashSet<OptionStorage<?>> dirtyStorages,
+                                   EnumSet<OptionFlag> flags,
+                                   MinecraftClient client) {
+
         if (client.world != null) {
             SodiumWorldRenderer swr = SodiumWorldRenderer.instanceNullable();
             if (swr != null) {
-                NvidiumWorldRenderer pipeline = ((INvidiumWorldRendererGetter)((SodiumWorldRendererAccessor)swr).getRenderSectionManager()).getRenderer();
-                if (pipeline != null && flags.contains(NvidiumOptionFlags.REQUIRES_SHADER_RELOAD)) {
+                AmdidiumWorldRenderer pipeline =
+                        ((IAmdidiumWorldRendererGetter)
+                                ((SodiumWorldRendererAccessor) swr).getRenderSectionManager())
+                                .getRenderer();
+
+                if (pipeline != null && flags.contains(AmdidiumOptionFlags.REQUIRES_SHADER_RELOAD)) {
                     pipeline.reloadShaders();
                 }
             }
