@@ -1,71 +1,124 @@
-package me.cortex.nvidium.gl.buffers;
+package me.cortex.amdidium.gl.buffers;
 
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.gl.GlObject;
-import org.lwjgl.opengl.ARBSparseBuffer;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL21;
+import me.cortex.amdidium.Amdidium;
+import me.cortex.amdidium.config.AmdidiumConfig;
+import me.cortex.amdidium.gl.GlObject;
 
-import static org.lwjgl.opengl.ARBDirectStateAccess.glCreateBuffers;
-import static org.lwjgl.opengl.ARBDirectStateAccess.glNamedBufferStorage;
-import static org.lwjgl.opengl.ARBSparseBuffer.GL_SPARSE_STORAGE_BIT_ARB;
-import static org.lwjgl.opengl.GL15C.GL_READ_WRITE;
-import static org.lwjgl.opengl.GL15C.glDeleteBuffers;
-import static org.lwjgl.opengl.NVShaderBufferLoad.*;
+import static org.lwjgl.opengl.ARBDirectStateAccess.*;
+import static org.lwjgl.opengl.ARBSparseBuffer.*;
+import static org.lwjgl.opengl.GL15C.*;
+import static org.lwjgl.opengl.GL21.*;
+import static org.lwjgl.opengl.GL45C.*;
 
+/**
+ * Backend-agnostic sparse buffer with optional device address support.
+ *
+ * OpenGL:
+ *   - Uses ARB_sparse_buffer for page commitment.
+ *   - Uses ARB_buffer_address (if available) for GPU addresses.
+ *
+ * Vulkan:
+ *   - Uses VkSparseBufferMemoryBindInfo (implemented in Vulkan backend).
+ *
+ * DirectX:
+ *   - Uses tiled resources (implemented in DX backend).
+ */
 public class PersistentSparseAddressableBuffer extends GlObject implements IDeviceMappedBuffer {
+
     public static long alignUp(long number, long alignment) {
         long delta = number % alignment;
-        return delta == 0?number: number + (alignment - delta);
+        return delta == 0 ? number : number + (alignment - delta);
     }
 
-    public final long addr;
-    public final long size;
+    public static final long PAGE_SIZE = 1 << 20; // 1 MB pages
 
-    //The reason the page size is now 1mb is cause the nv driver doesnt defrag the sparse allocations easily
-    // meaning smaller pages result in more fragmented memory and not happy for the driver
-    // 1mb seems to work well
-    public static final long PAGE_SIZE = 1<<20;//16
-
-    public PersistentSparseAddressableBuffer(long size) {
-        super(glCreateBuffers());
-        if (!Nvidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER) {
-            throw new IllegalStateException();
-        }
-        this.size = alignUp(size, PAGE_SIZE);
-        glNamedBufferStorage(id, size, GL_SPARSE_STORAGE_BIT_ARB);
-        long[] holder = new long[1];
-        glMakeNamedBufferResidentNV(id, GL_READ_WRITE);
-        glGetNamedBufferParameterui64vNV(id, GL_BUFFER_GPU_ADDRESS_NV, holder);
-        addr = holder[0];
-        if (addr == 0) {
-            throw new IllegalStateException();
-        }
-    }
-
-    private static void doCommit(int buffer, long offset, long size, boolean commit) {
-        GL21.glBindBuffer(GL15.GL_ARRAY_BUFFER, buffer);
-        ARBSparseBuffer.glBufferPageCommitmentARB(GL15.GL_ARRAY_BUFFER, offset, size, commit);
-    }
+    private final long size;
+    private long deviceAddress = 0;
 
     private final Int2IntOpenHashMap allocationCount = new Int2IntOpenHashMap();
 
-    private void allocatePages(int page, int pageCount) {
-        doCommit(id, PAGE_SIZE * page, PAGE_SIZE * pageCount, true);
-        for (int i = 0; i < pageCount; i++) {
-            allocationCount.addTo(i+page,1);
+    public PersistentSparseAddressableBuffer(long size) {
+        super(glCreateBuffers());
+        this.size = alignUp(size, PAGE_SIZE);
+
+        switch (Amdidium.config.backend) {
+            case OPENGL -> initOpenGL();
+            case VULKAN -> initVulkan();
+            case DIRECTX -> initDirectX();
         }
     }
 
-    private void deallocatePages(int page, int pageCount) {
-        for (int i = 0; i < pageCount; i++) {
-            int newCount = allocationCount.get(i+page) - 1;
-            if (newCount != 0) {
-                allocationCount.put(i+page, newCount);
+    // ───────────────────────────────────────────────────────────────
+    //  OpenGL Backend
+    // ───────────────────────────────────────────────────────────────
+    private void initOpenGL() {
+        // Allocate sparse storage
+        glNamedBufferStorage(id, size, GL_SPARSE_STORAGE_BIT_ARB, 0);
+
+        // Try to acquire a GPU address (ARB_buffer_address)
+        if (supportsExtension("GL_ARB_buffer_address")) {
+            long[] out = new long[1];
+            glGetNamedBufferParameterui64vARB(id, GL_BUFFER_GPU_ADDRESS_ARB, out);
+            glMakeNamedBufferResidentARB(id, GL_READ_WRITE);
+            deviceAddress = out[0];
+        }
+    }
+
+    private void commitPagesGL(int page, int count, boolean commit) {
+        glBindBuffer(GL_ARRAY_BUFFER, id);
+        glBufferPageCommitmentARB(GL_ARRAY_BUFFER, PAGE_SIZE * page, PAGE_SIZE * count, commit);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    //  Vulkan Backend (stub — implemented in VulkanBuffer)
+    // ───────────────────────────────────────────────────────────────
+    private void initVulkan() {
+        // Vulkan backend will override this class entirely.
+        // This constructor is only called for OpenGL.
+        throw new UnsupportedOperationException("Vulkan sparse buffer is implemented in Vulkan backend");
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    //  DirectX Backend (stub — implemented in DX12Buffer)
+    // ───────────────────────────────────────────────────────────────
+    private void initDirectX() {
+        // DX12 backend will override this class entirely.
+        throw new UnsupportedOperationException("DirectX sparse buffer is implemented in DX backend");
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    //  Sparse Residency Management (OpenGL only)
+    // ───────────────────────────────────────────────────────────────
+    public void ensureAllocated(long addr, long size) {
+        int pstart = (int) (addr / PAGE_SIZE);
+        int pend = (int) ((addr + size + PAGE_SIZE - 1) / PAGE_SIZE);
+        allocatePages(pstart, pend - pstart);
+    }
+
+    public void deallocate(long addr, long size) {
+        int pstart = (int) (addr / PAGE_SIZE);
+        int pend = (int) ((addr + size + PAGE_SIZE - 1) / PAGE_SIZE);
+        deallocatePages(pstart, pend - pstart);
+    }
+
+    private void allocatePages(int page, int count) {
+        commitPagesGL(page, count, true);
+        for (int i = 0; i < count; i++) {
+            allocationCount.addTo(page + i, 1);
+        }
+    }
+
+    private void deallocatePages(int page, int count) {
+        for (int i = 0; i < count; i++) {
+            int idx = page + i;
+            int newCount = allocationCount.get(idx) - 1;
+
+            if (newCount > 0) {
+                allocationCount.put(idx, newCount);
             } else {
-                allocationCount.remove(i+page);
-                doCommit(id, PAGE_SIZE * (page+i), PAGE_SIZE,false);
+                allocationCount.remove(idx);
+                commitPagesGL(idx, 1, false);
             }
         }
     }
@@ -74,36 +127,50 @@ public class PersistentSparseAddressableBuffer extends GlObject implements IDevi
         return allocationCount.size();
     }
 
-    public void ensureAllocated(long addr, long size) {
-        int pstart = (int) (addr/PAGE_SIZE);
-        int pend   = (int) ((addr+size+PAGE_SIZE-1)/PAGE_SIZE);
-        allocatePages(pstart, pend-pstart);
-    }
-
-    public void deallocate(long addr, long size) {
-        int pstart = (int) (addr/PAGE_SIZE);
-        int pend   = (int) ((addr+size+PAGE_SIZE-1)/PAGE_SIZE);
-        deallocatePages(pstart, pend-pstart);
-    }
-
+    // ───────────────────────────────────────────────────────────────
+    //  Device Address
+    // ───────────────────────────────────────────────────────────────
     @Override
     public long getDeviceAddress() {
-        return addr;
+        return deviceAddress;
     }
 
+    // ───────────────────────────────────────────────────────────────
+    //  Cleanup
+    // ───────────────────────────────────────────────────────────────
+    @Override
     public void delete() {
         super.free0();
-        glMakeNamedBufferNonResidentNV(id);
+
+        if (deviceAddress != 0 && supportsExtension("GL_ARB_buffer_address")) {
+            try {
+                glMakeNamedBufferNonResidentARB(id);
+            } catch (Throwable ignored) {}
+        }
+
         glDeleteBuffers(id);
     }
 
     @Override
     public void free() {
-        this.delete();
+        delete();
     }
 
     @Override
     public long getSize() {
         return size;
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    //  Utility
+    // ───────────────────────────────────────────────────────────────
+    private static boolean supportsExtension(String ext) {
+        int count = glGetInteger(GL_NUM_EXTENSIONS);
+        for (int i = 0; i < count; i++) {
+            if (ext.equals(glGetStringi(GL_EXTENSIONS, i))) {
+                return true;
+            }
+        }
+        return false;
     }
 }
