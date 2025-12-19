@@ -1,4 +1,4 @@
-package me.cortex.nvidium.sodiumCompat;
+package me.lordrelentless.amdidium.sodiumCompat;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.irisshaders.iris.api.v0.IrisApi;
