@@ -1,4 +1,4 @@
-package me.cortex.nvidium.mixin.sodium;
+package me.lordrelentless.amdidium.mixin.sodium;
 
 import me.jellysquid.mods.sodium.client.render.SodiumWorldRenderer;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSectionManager;
