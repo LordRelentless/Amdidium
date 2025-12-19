@@ -1,13 +1,13 @@
-package me.cortex.nvidium.mixin.sodium;
+package me.lordrelentless.amdidium.mixin.sodium;
 
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.NvidiumWorldRenderer;
-import me.cortex.nvidium.managers.AsyncOcclusionTracker;
-import me.cortex.nvidium.sodiumCompat.INvidiumWorldRendererGetter;
-import me.cortex.nvidium.sodiumCompat.INvidiumWorldRendererSetter;
-import me.cortex.nvidium.sodiumCompat.IRenderSectionExtension;
-import me.cortex.nvidium.sodiumCompat.IrisCheck;
+import me.lordrelentless.amdidium.Amdidium;
+import me.lordrelentless.amdidium.AmdidiumWorldRenderer;
+import me.lordrelentless.amdidium.managers.AsyncOcclusionTracker;
+import me.lordrelentless.amdidium.sodiumCompat.IAmdidiumWorldRendererGetter;
+import me.lordrelentless.amdidium.sodiumCompat.IAmdidiumWorldRendererSetter;
+import me.lordrelentless.amdidium.sodiumCompat.IRenderSectionExtension;
+import me.lordrelentless.amdidium.sodiumCompat.IrisCheck;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkUpdateType;
@@ -37,8 +37,12 @@ import java.util.Map;
 
 @Mixin(value = RenderSection.class, remap = false)
 public class MixinRenderSection implements IRenderSectionExtension {
-    @Unique private volatile boolean isEnqueued;
-    @Unique private volatile boolean isSeen;
+
+    @Unique
+    private volatile boolean isEnqueued;
+
+    @Unique
+    private volatile boolean isSeen;
 
     @Override
     public boolean isSubmittedRebuild() {
