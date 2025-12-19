@@ -1,11 +1,11 @@
-package me.cortex.nvidium;
+package me.cortex.amdidium;
 
-import me.cortex.nvidium.gl.RenderDevice;
-import me.cortex.nvidium.managers.AsyncOcclusionTracker;
-import me.cortex.nvidium.managers.SectionManager;
-import me.cortex.nvidium.sodiumCompat.NvidiumCompactChunkVertex;
-import me.cortex.nvidium.util.DownloadTaskStream;
-import me.cortex.nvidium.util.UploadingBufferStream;
+import me.cortex.amdidium.gl.RenderDevice;
+import me.cortex.amdidium.managers.AsyncOcclusionTracker;
+import me.cortex.amdidium.managers.SectionManager;
+import me.cortex.amdidium.sodiumCompat.AmdidiumCompactChunkVertex;
+import me.cortex.amdidium.util.DownloadTaskStream;
+import me.cortex.amdidium.util.UploadingBufferStream;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import me.jellysquid.mods.sodium.client.render.chunk.RenderSection;
@@ -16,17 +16,15 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.client.texture.Sprite;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4fc;
-import org.joml.Matrix4x3fc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.lwjgl.opengl.GL11.glGetInteger;
-import static org.lwjgl.opengl.GL11.glNewList;
-import static org.lwjgl.opengl.NVXGPUMemoryInfo.GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX;
+import static org.lwjgl.opengl.ATIMeminfo.GL_VBO_FREE_MEMORY_ATI;
 
-public class NvidiumWorldRenderer {
+public class AmdidiumWorldRenderer {
     private static final RenderDevice device = new RenderDevice();
 
     private final UploadingBufferStream uploadStream;
@@ -37,24 +35,33 @@ public class NvidiumWorldRenderer {
 
     private final AsyncOcclusionTracker asyncChunkTracker;
 
-    //Max memory that the gpu can use to store geometry in mb
+    // Max memory that the GPU can use to store geometry in MB
     private long max_geometry_memory;
     private long last_sample_time;
 
-    //Note: the reason that asyncChunkTracker is passed in as an already constructed object is cause of the amount of argmuents it takes to construct it
-    public NvidiumWorldRenderer(AsyncOcclusionTracker asyncChunkTracker) {
-        int frames = SodiumClientMod.options().advanced.cpuRenderAheadLimit+1;
-        //32 mb upload buffer
-        this.uploadStream = new UploadingBufferStream(device, 32000000);
-        //8 mb download buffer
-        this.downloadStream = new DownloadTaskStream(device, frames, 8000000);
+    // Note: the reason that asyncChunkTracker is passed in as an already constructed object
+    // is because of the number of arguments it takes to construct it.
+    public AmdidiumWorldRenderer(AsyncOcclusionTracker asyncChunkTracker) {
+        int frames = SodiumClientMod.options().advanced.cpuRenderAheadLimit + 1;
+
+        // 32 MB upload buffer
+        this.uploadStream = new UploadingBufferStream(device, 32 * 1024 * 1024);
+        // 8 MB download buffer
+        this.downloadStream = new DownloadTaskStream(device, frames, 8 * 1024 * 1024);
 
         update_allowed_memory();
-        //this.sectionManager = new SectionManager(device, max_geometry_memory*1024*1024, uploadStream, 150, 24, CompactChunkVertex.STRIDE);
-        this.sectionManager = new SectionManager(device, max_geometry_memory*1024*1024, uploadStream, NvidiumCompactChunkVertex.STRIDE, this);
+
+        // Geometry arena size in bytes
+        // Original Nvidium used CompactChunkVertex.STRIDE; our AMD path uses AmdidiumCompactChunkVertex.
+        this.sectionManager = new SectionManager(
+                device,
+                max_geometry_memory * 1024L * 1024L,
+                uploadStream,
+                AmdidiumCompactChunkVertex.STRIDE,
+                this
+        );
+
         this.renderPipeline = new RenderPipeline(device, uploadStream, downloadStream, sectionManager);
-
-
         this.asyncChunkTracker = asyncChunkTracker;
     }
 
@@ -66,6 +73,7 @@ public class NvidiumWorldRenderer {
         uploadStream.delete();
         downloadStream.delete();
         renderPipeline.delete();
+
         if (asyncChunkTracker != null) {
             asyncChunkTracker.delete();
         }
@@ -84,7 +92,8 @@ public class NvidiumWorldRenderer {
             renderPipeline.removeARegion();
         }
 
-        if (Nvidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER && (System.currentTimeMillis() - last_sample_time) > 60000) {
+        if (Amdidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER &&
+                (System.currentTimeMillis() - last_sample_time) > 60_000) {
             last_sample_time = System.currentTimeMillis();
             update_allowed_memory();
         }
@@ -103,29 +112,71 @@ public class NvidiumWorldRenderer {
     }
 
     public void addDebugInfo(ArrayList<String> debugInfo) {
-        debugInfo.add("Using nvidium renderer: "+ Nvidium.MOD_VERSION);
-        /*
-        debugInfo.add("Memory limit: " + max_geometry_memory + " mb");
-        debugInfo.add("Terrain Memory MB: " +);
-        debugInfo.add(String.format("Fragmentation: %.2f", sectionManager.terrainAreana.getFragmentation()*100));
-        debugInfo.add("Regions: " + sectionManager.getRegionManager().regionCount() + "/" + sectionManager.getRegionManager().maxRegions());
-         */
-        debugInfo.add("Mem" + (Nvidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER?"":" (fallback)") + ": " + (Nvidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER?this.sectionManager.terrainAreana.getAllocatedMB():this.sectionManager.terrainAreana.getUsedMB()) + "/"+ this.max_geometry_memory + String.format(", F: %.2f", sectionManager.terrainAreana.getFragmentation()*100));
-        debugInfo.add("Regions: " + sectionManager.getRegionManager().regionCount() + "/" + sectionManager.getRegionManager().maxRegions());
+        debugInfo.add("Using Amdidium renderer: " + Amdidium.MOD_VERSION);
+
+        debugInfo.add(
+                "Mem" + (Amdidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER ? "" : " (fallback)") +
+                        ": " +
+                        (Amdidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER
+                                ? this.sectionManager.terrainAreana.getAllocatedMB()
+                                : this.sectionManager.terrainAreana.getUsedMB()) +
+                        "/" + this.max_geometry_memory +
+                        String.format(", F: %.2f", sectionManager.terrainAreana.getFragmentation() * 100.0)
+        );
+
+        debugInfo.add(
+                "Regions: " +
+                        sectionManager.getRegionManager().regionCount() + "/" +
+                        sectionManager.getRegionManager().maxRegions()
+        );
+
         if (this.asyncChunkTracker != null) {
-            debugInfo.add("A-BFS: " + asyncChunkTracker.getIterationTime() + " Q: " + Arrays.toString(this.asyncChunkTracker.getBuildQueueSizes()));//Async BFS iteration time:, Build queue sizes:
+            debugInfo.add(
+                    "A-BFS: " + asyncChunkTracker.getIterationTime() +
+                            " Q: " + Arrays.toString(this.asyncChunkTracker.getBuildQueueSizes())
+            );
         }
+
         this.renderPipeline.addDebugInfo(debugInfo);
     }
 
-
+    /**
+     * Updates the allowed geometry memory budget.
+     *
+     * For Nvidia, Nvidium used GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX (NVX extension).
+     * For AMD, we prefer GL_VBO_FREE_MEMORY_ATI (GL_ATI_meminfo) when available.
+     * If automatic detection is disabled or ATI_meminfo isn't usable, fall back to config.
+     */
     private void update_allowed_memory() {
-        if (Nvidium.config.automatic_memory) {
-            max_geometry_memory = (glGetInteger(GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX) / 1024) + (sectionManager==null?0:sectionManager.terrainAreana.getMemoryUsed()/(1024*1024));
-            max_geometry_memory -= 1024;//Minus 1gb of vram
-            max_geometry_memory = Math.max(2048, max_geometry_memory);//Minimum 2 gb of vram
+        if (Amdidium.config.automatic_memory) {
+            long availableMb;
+
+            try {
+                // GL_ATI_meminfo returns values in KB for the *_FREE_MEMORY_ATI enums.
+                int freeKb = glGetInteger(GL_VBO_FREE_MEMORY_ATI);
+                availableMb = freeKb / 1024L;
+            } catch (Throwable t) {
+                // If the extension isn't present or querying fails, log once and fall back to config.
+                Amdidium.LOGGER.warn(
+                        "Failed to query AMD GPU memory via GL_ATI_meminfo; falling back to configured max_geometry_memory",
+                        t
+                );
+                availableMb = Amdidium.config.max_geometry_memory;
+            }
+
+            long currentlyUsedMb = (sectionManager == null)
+                    ? 0
+                    : sectionManager.terrainAreana.getMemoryUsed() / (1024L * 1024L);
+
+            max_geometry_memory = availableMb + currentlyUsedMb;
+
+            // Reserve 1 GB for everything else
+            max_geometry_memory -= 1024;
+
+            // Minimum 2 GB geometry budget
+            max_geometry_memory = Math.max(2048, max_geometry_memory);
         } else {
-            max_geometry_memory = Nvidium.config.max_geometry_memory;
+            max_geometry_memory = Amdidium.config.max_geometry_memory;
         }
     }
 
@@ -179,6 +230,7 @@ public class NvidiumWorldRenderer {
             return -1;
         }
     }
+
     public int getMaxGeometryMemory() {
         return (int) max_geometry_memory;
     }
