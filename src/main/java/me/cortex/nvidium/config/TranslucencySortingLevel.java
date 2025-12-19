@@ -1,4 +1,4 @@
-package me.cortex.nvidium.config;
+package me.cortex.amdidium.config;
 
 public enum TranslucencySortingLevel {
     NONE,
