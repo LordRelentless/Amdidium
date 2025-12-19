@@ -1,8 +1,8 @@
-package me.cortex.nvidium.mixin.sodium;
+package me.lordrelentless.amdidium.mixin.sodium;
 
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.NvidiumWorldRenderer;
-import me.cortex.nvidium.sodiumCompat.INvidiumWorldRendererSetter;
+import me.lordrelentless.amdidium.Amdidium;
+import me.lordrelentless.amdidium.AmdidiumWorldRenderer;
+import me.lordrelentless.amdidium.sodiumCompat.IAmdidiumWorldRendererSetter;
 import me.jellysquid.mods.sodium.client.gl.device.CommandList;
 import me.jellysquid.mods.sodium.client.render.chunk.compile.ChunkBuildOutput;
 import me.jellysquid.mods.sodium.client.render.chunk.region.RenderRegion;
@@ -16,17 +16,29 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import java.util.Collection;
 
 @Mixin(value = RenderRegionManager.class, remap = false)
-public abstract class MixinRenderRegionManager implements INvidiumWorldRendererSetter {
+public abstract class MixinRenderRegionManager implements IAmdidiumWorldRendererSetter {
 
+    @Shadow
+    protected abstract void uploadMeshes(CommandList commandList,
+                                         RenderRegion region,
+                                         Collection<ChunkBuildOutput> results);
 
-    @Shadow protected abstract void uploadMeshes(CommandList commandList, RenderRegion region, Collection<ChunkBuildOutput> results);
+    @Unique
+    private AmdidiumWorldRenderer renderer;
 
-    @Unique private NvidiumWorldRenderer renderer;
+    @Redirect(
+        method = "uploadMeshes(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;Ljava/util/Collection;)V",
+        at = @At(
+            value = "INVOKE",
+            target = "Lme/jellysquid/mods/sodium/client/render/chunk/region/RenderRegionManager;uploadMeshes(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;Lme/jellysquid/mods/sodium/client/render/chunk/region/RenderRegion;Ljava/util/Collection;)V"
+        )
+    )
+    private void redirectUpload(RenderRegionManager instance,
+                                CommandList cmdList,
+                                RenderRegion pass,
+                                Collection<ChunkBuildOutput> uploadQueue) {
 
-
-    @Redirect(method = "uploadMeshes(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;Ljava/util/Collection;)V", at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/chunk/region/RenderRegionManager;uploadMeshes(Lme/jellysquid/mods/sodium/client/gl/device/CommandList;Lme/jellysquid/mods/sodium/client/render/chunk/region/RenderRegion;Ljava/util/Collection;)V"))
-    private void redirectUpload(RenderRegionManager instance, CommandList cmdList, RenderRegion pass, Collection<ChunkBuildOutput> uploadQueue) {
-        if (Nvidium.IS_ENABLED) {
+        if (Amdidium.IS_ENABLED) {
             uploadQueue.forEach(renderer::uploadBuildResult);
         } else {
             uploadMeshes(cmdList, pass, uploadQueue);
@@ -34,7 +46,7 @@ public abstract class MixinRenderRegionManager implements INvidiumWorldRendererS
     }
 
     @Override
-    public void setWorldRenderer(NvidiumWorldRenderer renderer) {
+    public void setWorldRenderer(AmdidiumWorldRenderer renderer) {
         this.renderer = renderer;
     }
 }
