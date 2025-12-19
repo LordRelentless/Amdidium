@@ -1,18 +1,18 @@
-package me.cortex.nvidium.config;
+package me.cortex.amdidium.config;
 
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.config.NvidiumConfig;
+import me.cortex.amdidium.Amdidium;
 import me.jellysquid.mods.sodium.client.gui.options.storage.OptionStorage;
 
-public class NvidiumConfigStore implements OptionStorage<NvidiumConfig> {
-    private final NvidiumConfig config;
+public class AmdidiumConfigStore implements OptionStorage<AmdidiumConfig> {
 
-    public NvidiumConfigStore() {
-        config = Nvidium.config;
+    private final AmdidiumConfig config;
+
+    public AmdidiumConfigStore() {
+        this.config = Amdidium.config;
     }
 
     @Override
-    public NvidiumConfig getData() {
+    public AmdidiumConfig getData() {
         return config;
     }
 
