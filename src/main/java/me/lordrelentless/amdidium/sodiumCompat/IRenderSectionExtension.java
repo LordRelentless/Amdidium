@@ -1,4 +1,4 @@
-package me.cortex.nvidium.sodiumCompat;
+package me.lordrelentless.amdidium.sodiumCompat;
 
 public interface IRenderSectionExtension {
     boolean isSubmittedRebuild();
