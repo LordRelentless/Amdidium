@@ -1,35 +1,18 @@
-package me.cortex.nvidium.gl;
+package me.cortex.amdidium.gl;
 
-import me.cortex.nvidium.gl.buffers.*;
+import me.cortex.amdidium.gl.buffers.*;
 
-import static org.lwjgl.opengl.ARBDirectStateAccess.glCopyNamedBufferSubData;
-import static org.lwjgl.opengl.ARBDirectStateAccess.glFlushMappedNamedBufferRange;
-import static org.lwjgl.opengl.GL15C.glIsBuffer;
-import static org.lwjgl.opengl.GL42C.glMemoryBarrier;
+public interface RenderDevice {
 
-public class RenderDevice {
-    public PersistentClientMappedBuffer createClientMappedBuffer(long size) {
-        return new PersistentClientMappedBuffer(size);
-    }
+    PersistentClientMappedBuffer createClientMappedBuffer(long size);
 
-    public void flush(IClientMappedBuffer buffer, long offset, int size) {
-        int id = ((GlObject)buffer).getId();
-        glFlushMappedNamedBufferRange(id, offset, size);
-    }
+    PersistentSparseAddressableBuffer createSparseBuffer(long totalSize);
 
-    public void barrier(int flags) {
-        glMemoryBarrier(flags);
-    }
+    IDeviceMappedBuffer createDeviceOnlyMappedBuffer(long size);
 
-    public void copyBuffer(Buffer src, Buffer dst, long srcOffset, long dstOffset, long size) {
-        glCopyNamedBufferSubData(((GlObject)src).getId(), ((GlObject)dst).getId(), srcOffset, dstOffset, size);
-    }
+    void flush(IClientMappedBuffer buffer, long offset, int size);
 
-    public PersistentSparseAddressableBuffer createSparseBuffer(long totalSize) {
-        return new PersistentSparseAddressableBuffer(totalSize);
-    }
+    void barrier(int flags);
 
-    public IDeviceMappedBuffer createDeviceOnlyMappedBuffer(long size) {
-        return new DeviceOnlyMappedBuffer(size);
-    }
+    void copyBuffer(Buffer src, Buffer dst, long srcOffset, long dstOffset, long size);
 }
