@@ -3,7 +3,6 @@ package me.lordrelentless.amdidium;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import it.unimi.dsi.fastutil.ints.*;
-import me.lordrelentless.amdidium.api0.AmdidiumAPI;
 import me.lordrelentless.amdidium.config.AmdidiumConfig;
 import me.lordrelentless.amdidium.config.StatisticsLoggingLevel;
 import me.lordrelentless.amdidium.config.TranslucencySortingLevel;
@@ -34,12 +33,6 @@ import static org.lwjgl.opengl.GL30C.GL_RED_INTEGER;
 import static org.lwjgl.opengl.GL42.*;
 import static org.lwjgl.opengl.GL43C.*;
 
-/**
- * Backend-agnostic render pipeline core.
- *
- * Current implemented backend: OPENGL
- * Future backends: VULKAN, DIRECTX
- */
 public class RenderPipeline {
 
     public enum Backend {
@@ -122,7 +115,7 @@ public class RenderPipeline {
         this.sectionManager = sectionManager;
 
         this.backend = Backend.OPENGL;
-        this.compiledForFog = Amdidium.config.render_fog;
+        this.compiledForFog = AmdidiumConfig.render_fog;
 
         terrainRasterizer = new PrimaryTerrainRasterizer();
         regionRasterizer = new RegionRasterizer();
@@ -176,8 +169,6 @@ public class RenderPipeline {
         );
     }
 
-    // ... (unchanged methods for setTransformation, setOrigin, etc.)
-
     private void renderFrameOpenGL(int visibleRegions,
                                    int regionSortSize,
                                    short[] regionMap,
@@ -185,6 +176,25 @@ public class RenderPipeline {
                                    boolean WRITE_DEPTH) {
 
         glBindBufferRange(GL_UNIFORM_BUFFER, 0, sceneUniform.getId(), 0, SCENE_SIZE);
+
+        // Fill AMD indirect command buffer
+        if (!IS_NVIDIA && visibleRegions > 0) {
+            long addr = uploadStream.upload(indirectCommandBuffer, 0, visibleRegions * 20L);
+            for (int i = 0; i < visibleRegions; i++) {
+                int regionId = regionMap[i];
+
+                // Placeholder values — replace with actual index buffer layout
+                int indicesPerRegion = 6; // two triangles per quad
+                int firstIndex = regionId * indicesPerRegion;
+                int baseVertex = 0;
+
+                MemoryUtil.memPutInt(addr, indicesPerRegion); addr += 4;
+                MemoryUtil.memPutInt(addr, 1);                addr += 4; // one instance
+                MemoryUtil.memPutInt(addr, firstIndex);       addr += 4;
+                MemoryUtil.memPutInt(addr, baseVertex);       addr += 4;
+                MemoryUtil.memPutInt(addr, regionId);         addr += 4;
+            }
+        }
 
         if (prevRegionCount != 0) {
             glEnable(GL_DEPTH_TEST);
@@ -222,17 +232,5 @@ public class RenderPipeline {
 
         prevRegionCount = visibleRegions;
 
-        if (Amdidium.config.enable_temporal_coherence) {
-            glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
-            temporalRasterizer.raster(visibleRegions,
-                                      terrainCommandBuffer.getDeviceAddress(),
-                                      indirectCommandBuffer.getId(),
-                                      IS_NVIDIA);
-        }
-
-        // Visibility tracking unchanged...
-        // Region sorting unchanged...
-    }
-
-    // ... (rest of class unchanged except delete() also deletes indirectCommandBuffer)
-}
+        if (AmdidiumConfig.enable_temporal_coherence) {
+            glMemoryBarrier(GL_COMMAND_B
