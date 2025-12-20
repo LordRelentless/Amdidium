@@ -7,8 +7,7 @@
 #extension GL_NV_bindless_texture : require
 #extension GL_NV_shader_buffer_load : require
 
-
-#import <nvidium:occlusion/scene.glsl>
+#import <amdidium:occlusion/scene.glsl>
 
 #define ADD_SIZE (0.1f/16)
 
@@ -69,6 +68,7 @@ void main() {
 
     emitIndicies(visibilityIndex);
     if (gl_LocalInvocationID.x < 4) {
+
         emitParital(visibilityIndex);
 
         if (gl_LocalInvocationID.x == 0) {
