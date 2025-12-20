@@ -7,6 +7,7 @@ import me.lordrelentless.amdidium.gl.buffers.IDeviceMappedBuffer;
 import me.lordrelentless.amdidium.util.IdProvider;
 import me.lordrelentless.amdidium.util.UploadingBufferStream;
 import me.jellysquid.mods.sodium.client.render.viewport.Viewport;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.ChunkSectionPos;
 import org.lwjgl.system.MemoryUtil;
 
@@ -242,9 +243,7 @@ public class RegionManager {
         private final long sectionData =
                 MemoryUtil.nmemAlloc(8 * 4 * 8 * SectionManager.SECTION_SIZE);
 
-        private Region(int id, int rx, int ry, int rz) {
-            Arrays.fill
-        private Region(int id, int rx, int ry, int rz) {
+                private Region(int id, int rx, int ry, int rz) {
             Arrays.fill(this.pos2id, -1);
             Arrays.fill(this.id2pos, -1);
 
@@ -284,13 +283,13 @@ public class RegionManager {
 
     /**
      * Returns the number of indices to draw for a given region.
-     * This multiplies the number of active sections by a constant
-     * indices-per-section value defined in SectionManager.
+     * Uses GeometryProfile to adapt to texture pack resolution.
      */
     public int getIndicesPerRegion(int regionId) {
         Region region = this.regions[regionId];
         if (region == null) return 0;
-        return region.count * SectionManager.INDICES_PER_SECTION;
+        int indicesPerSection = GeometryProfile.getIndicesPerSection();
+        return region.count * indicesPerSection;
     }
 
     /**
@@ -301,7 +300,7 @@ public class RegionManager {
     public int getFirstIndex(int regionId) {
         Region region = this.regions[regionId];
         if (region == null) return 0;
-        return region.id * SectionManager.INDICES_PER_SECTION;
+        return region.id * GeometryProfile.getIndicesPerSection();
     }
 
     /**
@@ -311,6 +310,54 @@ public class RegionManager {
     public int getBaseVertex(int regionId) {
         Region region = this.regions[regionId];
         if (region == null) return 0;
-        return region.id * SectionManager.VERTICES_PER_REGION;
+        return region.id * GeometryProfile.getVerticesPerRegion();
+    }
+
+    // === GEOMETRY PROFILE HELPER ===
+    public static final class GeometryProfile {
+
+        // Define constants for different resolutions
+        public static final int INDICES_PER_SECTION_16 = 6 * 16 * 16; // example
+        public static final int INDICES_PER_SECTION_32 = 6 * 32 * 32;
+        public static final int INDICES_PER_SECTION_64 = 6 * 64 * 64;
+
+        public static final int VERTICES_PER_REGION_16 = 16 * 16 * 16;
+        public static final int VERTICES_PER_REGION_32 = 32 * 32 * 32;
+        public static final int VERTICES_PER_REGION_64 = 64 * 64 * 64;
+
+        /**
+         * Detects the current texture resolution and returns indices per section.
+         */
+        public static int getIndicesPerSection() {
+            int resolution = detectResolution();
+            return switch (resolution) {
+                case 32 -> INDICES_PER_SECTION_32;
+                case 64 -> INDICES_PER_SECTION_64;
+                default -> INDICES_PER_SECTION_16;
+            };
+        }
+
+        /**
+         * Detects the current texture resolution and returns vertices per region.
+         */
+        public static int getVerticesPerRegion() {
+            int resolution = detectResolution();
+            return switch (resolution) {
+                case 32 -> VERTICES_PER_REGION_32;
+                case 64 -> VERTICES_PER_REGION_64;
+                default -> VERTICES_PER_REGION_16;
+            };
+        }
+
+        /**
+         * Detects resolution based on active resource pack.
+         * Placeholder: always returns 16 for vanilla.
+         */
+        private static int detectResolution() {
+            var mc = MinecraftClient.getInstance();
+            // TODO: Inspect resource pack metadata or texture size
+            // For now, assume vanilla
+            return 16;
+        }
     }
 }
