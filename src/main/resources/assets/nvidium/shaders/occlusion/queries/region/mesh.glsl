@@ -7,8 +7,7 @@
 #extension GL_NV_bindless_texture : require
 #extension GL_NV_shader_buffer_load : require
 
-
-#import <nvidium:occlusion/scene.glsl>
+#import <amdidium:occlusion/scene.glsl>
 
 #define ADD_SIZE (0.1f/16)
 
@@ -53,9 +52,12 @@ void main() {
 
     //can also do 8 threads then each thread emits a primative and 4 indicies each then the lower 4 emit 1 indice extra each
 
-    vec3 corner = vec3(((gl_LocalInvocationID.x&1)==0)?start.x:end.x, ((gl_LocalInvocationID.x&4)==0)?start.y:end.y, ((gl_LocalInvocationID.x&2)==0)?start.z:end.z);
+    vec3 corner = vec3(((gl_LocalInvocationID.x&1)==0)?start.x:end.x,
+                       ((gl_LocalInvocationID.x&4)==0)?start.y:end.y,
+                       ((gl_LocalInvocationID.x&2)==0)?start.z:end.z);
     corner *= 16.0f;
-    gl_MeshVerticesNV[gl_LocalInvocationID.x].gl_Position = MVP*(getRegionTransformation(data)*vec4(corner, 1.0));
+    gl_MeshVerticesNV[gl_LocalInvocationID.x].gl_Position =
+        MVP*(getRegionTransformation(data)*vec4(corner, 1.0));
 
     int visibilityIndex = (int)gl_WorkGroupID.x;
 
