@@ -12,10 +12,9 @@
 #extension GL_KHR_shader_subgroup_ballot : require
 #extension GL_KHR_shader_subgroup_vote : require
 
-#import <nvidium:occlusion/scene.glsl>
-#import <nvidium:terrain/fog.glsl>
-#import <nvidium:terrain/vertex_format.glsl>
-
+#import <amdidium:occlusion/scene.glsl>
+#import <amdidium:terrain/fog.glsl>
+#import <amdidium:terrain/vertex_format.glsl>
 
 //It seems like for terrain at least, the sweat spot is ~16 quads per mesh invocation (even if the local size is not 32 )
 layout(local_size_x = 16) in;
@@ -39,7 +38,6 @@ taskNV in Task {
     uvec4 binVa;
     uvec4 binVb;
 };
-
 
 //Do a binary search via global invocation index to determine the base offset
 // Note, all threads in the work group are probably going to take the same path
@@ -84,8 +82,6 @@ vec4 pV2;
 Vertex V3;
 vec4 pV3;
 
-
-
 void putVertex(uint id, Vertex V) {
     #ifdef RENDER_FOG
     vec3 pos = decodeVertexPosition(V)+origin;
@@ -93,7 +89,6 @@ void putVertex(uint id, Vertex V) {
     OUT[id].fogLerp = clamp(computeFogLerp(exactPos, isCylindricalFog, fogStart, fogEnd) * fogColour.a, 0, 1);
     #endif
 }
-
 
 //TODO: make it so that its 32 threads but still 16 quads, each thread processes 2 verticies
 // it computes the min of 0,2 with subgroups, then locally it decieds if its triangle needs to be discarded
@@ -153,13 +148,11 @@ void main() {
         return;
     }
 
-    //barrier();
     uint triCnt = uint(t0draw)+uint(t1draw);
     //Do a subgroup prefix sum to compute emission indies and verticies, aswell as a max to compute the total count
     uint triIndex = subgroupExclusiveAdd(triCnt);
     uint vertBase = subgroupExclusiveAdd((t0draw==t1draw)?4:3);//if both tris are needed, its 4 verticies else its only 3
     uint totalTris = subgroupMax(triIndex+triCnt);
-
 
     uint indexIndex = triIndex*3;//3 indicies to a tri
     uint vertIndex = vertBase;
@@ -168,7 +161,6 @@ void main() {
     // emit the constant vertices (0,2) that are needed for both triangles
     putVertex(vertIndex, V0); gl_MeshVerticesNV[vertIndex++].gl_Position = pV0;
     putVertex(vertIndex, V2); gl_MeshVerticesNV[vertIndex++].gl_Position = pV2;
-
 
     uint lodBias = hasMipping(V0)?0:1;
     uint alphaCutoff = rawVertexAlphaCutoff(V0);
@@ -182,7 +174,6 @@ void main() {
         gl_PrimitiveIndicesNV[indexIndex++] = vertBase+1;
         vertIndex++;
 
-        //gl_MeshPrimitivesNV[triIndex++].gl_PrimitiveID = int(id<<1);
         gl_MeshPrimitivesNV[triIndex++].gl_PrimitiveID = primData|(0<<3);
     }
 
@@ -194,10 +185,8 @@ void main() {
         gl_PrimitiveIndicesNV[indexIndex++] = vertBase+0;
         vertIndex++;
 
-        //gl_MeshPrimitivesNV[triIndex++].gl_PrimitiveID = int((id<<1)+1);
         gl_MeshPrimitivesNV[triIndex++].gl_PrimitiveID = primData|(1<<3);
     }
-
 
     if (subgroupElect()) {
         gl_PrimitiveCountNV = totalTris;
