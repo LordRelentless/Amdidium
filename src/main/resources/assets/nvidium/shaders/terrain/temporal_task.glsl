@@ -11,21 +11,17 @@
 #extension GL_KHR_shader_subgroup_ballot : require
 #extension GL_KHR_shader_subgroup_vote : require
 
-#import <nvidium:occlusion/scene.glsl>
-
+#import <amdidium:occlusion/scene.glsl>
 
 //This is 1 since each task shader workgroup -> multiple meshlets. its not each globalInvocation (afaik)
 layout(local_size_x=1) in;
-
-
-
 
 bool shouldRenderVisible(uint sectionId) {
     uint8_t data = sectionVisibility[sectionId];
     return (data&uint8_t(3)) == uint8_t(1);//If the section was not visible last frame but is visible this frame, render it
 }
 
-#import <nvidium:terrain/task_common.glsl>
+#import <amdidium:terrain/task_common.glsl>
 
 void main() {
     uint sectionId = gl_WorkGroupID.x;
