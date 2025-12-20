@@ -3,10 +3,8 @@
 #define SORTING_NETWORK_SIZE 256
 layout(local_size_x = (SORTING_NETWORK_SIZE>>1), local_size_y = 1 , local_size_z = 1) in;
 
-#import <nvidium:occlusion/scene.glsl>
-#import <nvidium:sorting/sorting_network.glsl>
-
-
+#import <amdidium:occlusion/scene.glsl>
+#import <amdidium:sorting/sorting_network.glsl>
 
 void populateSection(uint regionId, uint8_t sectionId) {
     ivec4 sectionHeader = sectionData[(regionId<<8)|uint(sectionId)].header;
@@ -53,8 +51,6 @@ void update() {
     updateSection(regionId, uint8_t(gl_LocalInvocationID.x<<1));
     updateSection(regionId, uint8_t((gl_LocalInvocationID.x<<1)|1));
 }
-
-
 
 void main() {
     if (populate()) {
