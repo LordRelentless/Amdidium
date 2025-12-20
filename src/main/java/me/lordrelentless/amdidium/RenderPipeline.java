@@ -228,7 +228,7 @@ public class RenderPipeline {
         glDepthFunc(GL_LEQUAL);
         glDepthMask(false);
         if (DEBUG_RENDER_LEVEL == 1 && WRITE_DEPTH) glDepthMask(true);
-        if (DEBUG_RENDER_LEVEL != 1)        if (DEBUG_RENDER_LEVEL != 1) glColorMask(false, false, false, false);
+        if (DEBUG_RENDER_LEVEL != 1) glColorMask(false, false, false, false);
 
         regionRasterizer.raster(visibleRegions,
                                 indirectCommandBuffer.getId(),
