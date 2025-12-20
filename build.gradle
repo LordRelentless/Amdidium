@@ -22,7 +22,7 @@ targetCompatibility = JavaVersion.VERSION_21
 apply plugin: "fabric-loom"
 
 loom {
-    mixin.defaultRefmapName = "nvidium.refmap.json"
+    mixin.defaultRefmapName = "amdidium.refmap.json"
     runs {
         it.configureEach {
             vmArgs("-Xmx8G", "-XX:+UseZGC")
@@ -30,11 +30,10 @@ loom {
     }
 }
 
-
 processResources {
     inputs.properties("version": project.version, "commit": gitCommitHash, "buildtime":buildtime)
 
-    archivesBaseName = "nvidium"
+    archivesBaseName = "amdidium"
     filesMatching("fabric.mod.json") {
         expand "commit": gitCommitHash, "version": project.version, "buildtime": buildtime
     }
@@ -75,4 +74,3 @@ dependencies {
     //modImplementation "maven.modrinth:immersiveportals:v2.7.3-mc1.19.4"
     modCompileOnly "maven.modrinth:iris:1.7.0+1.20.6"
 }
-
