@@ -11,10 +11,9 @@
 #extension GL_KHR_shader_subgroup_ballot : require
 #extension GL_KHR_shader_subgroup_vote : require
 
-#import <nvidium:occlusion/scene.glsl>
-#import <nvidium:terrain/fog.glsl>
-#import <nvidium:terrain/vertex_format.glsl>
-
+#import <amdidium:occlusion/scene.glsl>
+#import <amdidium:terrain/fog.glsl>
+#import <amdidium:terrain/vertex_format.glsl>
 
 #ifdef TRANSLUCENCY_SORTING_QUADS
 vec3 depthPos = vec3(0);
@@ -65,7 +64,6 @@ void emitVertex(uint vertexBaseId, uint innerId) {
     vec3 pos = decodeVertexPosition(V)+originAndBaseData.xyz;
     gl_MeshVerticesNV[outId].gl_Position = MVP*vec4(pos,1.0);
 
-
     vec3 exactPos = pos+subchunkOffset.xyz;
 
     #ifdef RENDER_FOG
@@ -82,7 +80,6 @@ void emitVertex(uint vertexBaseId, uint innerId) {
     #ifdef TRANSLUCENCY_SORTING_QUADS
     depthPos += exactPos;
     #endif
-
 }
 
 #ifdef TRANSLUCENCY_SORTING_QUADS
@@ -99,9 +96,7 @@ void swapQuads(uint idxA, uint idxB) {
     Vertex B1 = terrainData[(idxB<<2)+1];
     Vertex B2 = terrainData[(idxB<<2)+2];
     Vertex B3 = terrainData[(idxB<<2)+3];
-    //groupMemoryBarrier();
-    //memoryBarrier();
-    //barrier();
+
     terrainData[(idxA<<2)+0] = B0;
     terrainData[(idxA<<2)+1] = B1;
     terrainData[(idxA<<2)+2] = B2;
@@ -110,9 +105,6 @@ void swapQuads(uint idxA, uint idxB) {
     terrainData[(idxB<<2)+1] = A1;
     terrainData[(idxB<<2)+2] = A2;
     terrainData[(idxB<<2)+3] = A3;
-    //groupMemoryBarrier();
-    //memoryBarrier();
-    //barrier();
 }
 
 void performTranslucencySort() {
@@ -191,5 +183,4 @@ void main() {
         //Remaining quads in workgroup
         gl_PrimitiveCountNV = min(uint(int(quadCount)-int(gl_WorkGroupID.x<<5))<<1, 64);//2 primatives per quad
     }
-
 }
