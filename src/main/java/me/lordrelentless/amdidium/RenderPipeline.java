@@ -169,6 +169,25 @@ public class RenderPipeline {
         );
     }
 
+    public void renderFrame(Viewport frustum,
+                            ChunkRenderMatrices crm,
+                            double px, double py, double pz) {
+        // ... unchanged frustum culling, scene uniform upload, regionMap building ...
+
+        // Backend-specific draw path
+        switch (backend) {
+            case OPENGL -> renderFrameOpenGL(
+                    visibleRegions,
+                    regionSortSize,
+                    regionMap,
+                    DEBUG_RENDER_LEVEL,
+                    WRITE_DEPTH
+            );
+            case VULKAN -> { /* TODO */ }
+            case DIRECTX -> { /* TODO */ }
+        }
+    }
+
     private void renderFrameOpenGL(int visibleRegions,
                                    int regionSortSize,
                                    short[] regionMap,
@@ -182,14 +201,11 @@ public class RenderPipeline {
             long addr = uploadStream.upload(indirectCommandBuffer, 0, visibleRegions * 20L);
             for (int i = 0; i < visibleRegions; i++) {
                 int regionId = regionMap[i];
-
-                // Placeholder values — replace with actual index buffer layout
-                int indicesPerRegion = 6; // two triangles per quad
+                int indicesPerRegion = 6; // placeholder, replace with actual
                 int firstIndex = regionId * indicesPerRegion;
                 int baseVertex = 0;
-
                 MemoryUtil.memPutInt(addr, indicesPerRegion); addr += 4;
-                MemoryUtil.memPutInt(addr, 1);                addr += 4; // one instance
+                MemoryUtil.memPutInt(addr, 1);                addr += 4;
                 MemoryUtil.memPutInt(addr, firstIndex);       addr += 4;
                 MemoryUtil.memPutInt(addr, baseVertex);       addr += 4;
                 MemoryUtil.memPutInt(addr, regionId);         addr += 4;
@@ -208,14 +224,12 @@ public class RenderPipeline {
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
         glDepthMask(false);
-        if (DEBUG_RENDER_LEVEL == 1 && WRITE_DEPTH) {
-            glDepthMask(true);
-        }
-        if (DEBUG_RENDER_LEVEL != 1) {
-            glColorMask(false, false, false, false);
-        }
+        if (DEBUG_RENDER_LEVEL == 1 && WRITE_DEPTH) glDepthMask(true);
+        if (DEBUG_RENDER_LEVEL != 1) glColorMask(false, false, false, false);
 
         regionRasterizer.raster(visibleRegions,
+                                indirectCommandBuffer
+                                        regionRasterizer.raster(visibleRegions,
                                 indirectCommandBuffer.getId(),
                                 IS_NVIDIA);
 
@@ -233,4 +247,153 @@ public class RenderPipeline {
         prevRegionCount = visibleRegions;
 
         if (AmdidiumConfig.enable_temporal_coherence) {
-            glMemoryBarrier(GL_COMMAND_B
+            glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+            temporalRasterizer.raster(visibleRegions,
+                                      terrainCommandBuffer.getDeviceAddress(),
+                                      indirectCommandBuffer.getId(),
+                                      IS_NVIDIA);
+        }
+
+        // Visibility tracking
+        {
+            glDepthMask(false);
+            glColorMask(false, false, false, false);
+
+            regionVisibilityTracking.computeVisibility(visibleRegions, regionVisibility, regionMap);
+
+            glDepthMask(true);
+            glColorMask(true, true, true, true);
+        }
+
+        if (regionSortSize != 0) {
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            regionSectionSorter.dispatch(regionSortSize);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+
+        glDepthFunc(GL11C.GL_LEQUAL);
+        glDisable(GL_DEPTH_TEST);
+    }
+
+    void enqueueRegionSort(int regionId) {
+        this.regionsToSort.add(regionId);
+    }
+
+    private void removeRegion(int id) {
+        sectionManager.removeRegionById(id);
+        regionVisibilityTracking.resetRegion(id);
+    }
+
+    public void removeARegion() {
+        removeRegion(
+                regionVisibilityTracking.findMostLikelyLeastSeenRegion(
+                        sectionManager.getRegionManager().maxRegionIndex()
+                )
+        );
+    }
+
+    public void renderTranslucent() {
+        switch (backend) {
+            case OPENGL -> renderTranslucentOpenGL();
+            case VULKAN -> { /* TODO */ }
+            case DIRECTX -> { /* TODO */ }
+        }
+    }
+
+    private void renderTranslucentOpenGL() {
+        glBindBufferRange(GL_UNIFORM_BUFFER, 0, sceneUniform.getId(), 0, SCENE_SIZE);
+
+        glEnable(GL_DEPTH_TEST);
+        RenderSystem.enableBlend();
+        RenderSystem.blendFuncSeparate(
+                GlStateManager.SrcFactor.SRC_ALPHA,
+                GlStateManager.DstFactor.ONE_MINUS_SRC_ALPHA,
+                GlStateManager.SrcFactor.ONE,
+                GlStateManager.DstFactor.ONE_MINUS_SRC_ALPHA
+        );
+
+        translucencyTerrainRasterizer.raster(prevRegionCount,
+                                             translucencyCommandBuffer.getDeviceAddress(),
+                                             indirectCommandBuffer.getId(),
+                                             IS_NVIDIA);
+
+        RenderSystem.disableBlend();
+        RenderSystem.defaultBlendFunc();
+        glDisable(GL_DEPTH_TEST);
+
+        if (AmdidiumConfig.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+            downloadStream.download(statisticsBuffer, 0, 4 * 4, (addr) -> {
+                stats.regionCount = MemoryUtil.memGetInt(addr);
+                stats.sectionCount = MemoryUtil.memGetInt(addr + 4);
+                stats.quadCount = MemoryUtil.memGetInt(addr + 8);
+            });
+        }
+
+        if (AmdidiumConfig.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+            long upload = this.uploadStream.upload(statisticsBuffer, 0, 4 * 4);
+            MemoryUtil.memSet(upload, 0, 4 * 4);
+        }
+    }
+
+    public void delete() {
+        regionVisibilityTracking.delete();
+
+        sceneUniform.delete();
+        regionVisibility.delete();
+        sectionVisibility.delete();
+        terrainCommandBuffer.delete();
+        translucencyCommandBuffer.delete();
+        indirectCommandBuffer.delete();
+        regionSortingList.delete();
+
+        terrainRasterizer.delete();
+        regionRasterizer.delete();
+        sectionRasterizer.delete();
+        temporalRasterizer.delete();
+        translucencyTerrainRasterizer.delete();
+        regionSectionSorter.delete();
+        this.transformationArray.delete();
+        this.originOffsetArray.delete();
+
+        if (statisticsBuffer != null) {
+            statisticsBuffer.delete();
+        }
+    }
+
+    public void addDebugInfo(List<String> info) {
+        if (AmdidiumConfig.statistics_level != StatisticsLoggingLevel.NONE) {
+            StringBuilder builder = new StringBuilder();
+            builder.append("Statistics: ");
+            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+                builder.append("F: ").append(stats.frustumCount);
+            }
+            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.REGIONS.ordinal()) {
+                builder.append(", R: ").append(stats.regionCount);
+            }
+            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.SECTIONS.ordinal()) {
+                builder.append(", S: ").append(stats.sectionCount);
+            }
+            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.QUADS.ordinal()) {
+                builder.append(", Q: ").append(stats.quadCount);
+            }
+            info.addAll(List.of(builder.toString().split("\n")));
+        }
+    }
+
+    public void reloadShaders() {
+        this.compiledForFog = AmdidiumConfig.render_fog;
+        terrainRasterizer.delete();
+        regionRasterizer.delete();
+        sectionRasterizer.delete();
+        temporalRasterizer.delete();
+        translucencyTerrainRasterizer.delete();
+        regionSectionSorter.delete();
+
+        terrainRasterizer = new PrimaryTerrainRasterizer();
+        regionRasterizer = new RegionRasterizer();
+        sectionRasterizer = new SectionRasterizer();
+        temporalRasterizer = new TemporalTerrainRasterizer();
+        translucencyTerrainRasterizer = new TranslucentTerrainRasterizer();
+        regionSectionSorter = new SortRegionSectionPhase();
+    }
+}
