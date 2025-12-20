@@ -11,7 +11,7 @@
 #extension GL_KHR_shader_subgroup_ballot : require
 #extension GL_KHR_shader_subgroup_vote : require
 
-#import <nvidium:occlusion/scene.glsl>
+#import <amdidium:occlusion/scene.glsl>
 
 #define MESH_WORKLOAD_PER_INVOCATION 32
 
@@ -62,7 +62,6 @@ void main() {
     chunk.y <<= 32-9;
     chunk.y >>= 32-9;
     originAndBaseData.xyz = vec3((chunk - chunkPosition.xyz)<<4);
-
 
     quadCount = ((sectionData[sectionId].renderRanges.w>>16)&0xFFFF);
     #ifdef TRANSLUCENCY_SORTING_QUADS
