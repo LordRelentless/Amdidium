@@ -77,9 +77,6 @@ void populateTasks(ivec3 relChunkPos, uvec4 ranges) {
     //TODO: Put unsigned quads at the begining? since it should be cheaper
     putBinData(idx, lastIndex, fr, fr + (ranges.w&0xFFFF));
 
-
-
-
     quadCount = lastIndex;
 
     //Emit enough mesh shaders such that max(gl_GlobalInvocationID.x)>=quadCount
