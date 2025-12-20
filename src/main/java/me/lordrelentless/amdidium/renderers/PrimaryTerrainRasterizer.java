@@ -10,7 +10,6 @@ import org.lwjgl.opengl.GL12C;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL45C;
 
-import static me.lordrelentless.amdidium.RenderPipeline.GL_DRAW_INDIRECT_ADDRESS_NV;
 import static me.lordrelentless.amdidium.gl.shader.ShaderType.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL33.glGenSamplers;
@@ -20,9 +19,17 @@ import static org.lwjgl.opengl.NVVertexBufferUnifiedMemory.glBufferAddressRangeN
 public class PrimaryTerrainRasterizer extends Phase {
     private final int blockSampler = glGenSamplers();
     private final int lightSampler = glGenSamplers();
-    private final Shader shader = Shader.make()
+
+    // NVIDIA mesh shader pipeline
+    private final Shader shaderNV = Shader.make()
             .addSource(TASK, ShaderLoader.parse(Identifier.of("amdidium", "terrain/task.glsl")))
             .addSource(MESH, ShaderLoader.parse(Identifier.of("amdidium", "terrain/mesh.glsl")))
+            .addSource(FRAGMENT, ShaderLoader.parse(Identifier.of("amdidium", "terrain/frag.frag")))
+            .compile();
+
+    // AMD / generic GL pipeline
+    private final Shader shaderGL = Shader.make()
+            .addSource(VERTEX, ShaderLoader.parse(Identifier.of("amdidium", "terrain/translucent/vertex.glsl")))
             .addSource(FRAGMENT, ShaderLoader.parse(Identifier.of("amdidium", "terrain/frag.frag")))
             .compile();
 
@@ -42,7 +49,8 @@ public class PrimaryTerrainRasterizer extends Phase {
         GlStateManager._bindTexture(textureId);
     }
 
-    public void raster(int regionCount, long commandAddr) {
+    public void raster(int regionCount, long commandAddr, int commandBufferId, boolean isNvidia) {
+        Shader shader = isNvidia ? shaderNV : shaderGL;
         shader.bind();
 
         int blockId = MinecraftClient.getInstance()
@@ -61,8 +69,13 @@ public class PrimaryTerrainRasterizer extends Phase {
         setTexture(blockId, 0);
         setTexture(lightId, 1);
 
-        glBufferAddressRangeNV(GL_DRAW_INDIRECT_ADDRESS_NV, 0, commandAddr, regionCount * 8L);
-        glMultiDrawMeshTasksIndirectNV(0, regionCount, 0);
+        if (isNvidia) {
+            glBufferAddressRangeNV(0x8F3F /* GL_DRAW_INDIRECT_ADDRESS_NV */, 0, commandAddr, regionCount * 8L);
+            glMultiDrawMeshTasksIndirectNV(0, regionCount, 0);
+        } else {
+            GL45C.glBindBuffer(GL45C.GL_DRAW_INDIRECT_BUFFER, commandBufferId);
+            GL43C.glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, regionCount, 20);
+        }
 
         GL45C.glBindSampler(0, 0);
         GL45C.glBindSampler(1, 0);
@@ -71,6 +84,7 @@ public class PrimaryTerrainRasterizer extends Phase {
     public void delete() {
         GL45.glDeleteSamplers(blockSampler);
         GL45.glDeleteSamplers(lightSampler);
-        shader.delete();
+        shaderNV.delete();
+        shaderGL.delete();
     }
 }
