@@ -42,4 +42,3 @@ vec2 decodeLightUV(Vertex v) {
     uvec2 light = uvec2(v.y>>24, v.z>>24) & uvec2(0xFFu);
     return vec2(light)/256.0;
 }
-
