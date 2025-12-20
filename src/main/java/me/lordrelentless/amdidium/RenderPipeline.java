@@ -201,9 +201,12 @@ public class RenderPipeline {
             long addr = uploadStream.upload(indirectCommandBuffer, 0, visibleRegions * 20L);
             for (int i = 0; i < visibleRegions; i++) {
                 int regionId = regionMap[i];
-                int indicesPerRegion = 6; // placeholder, replace with actual
-                int firstIndex = regionId * indicesPerRegion;
-                int baseVertex = 0;
+
+                // Use RegionManager helpers instead of placeholders
+                int indicesPerRegion = sectionManager.getRegionManager().getIndicesPerRegion(regionId);
+                int firstIndex       = sectionManager.getRegionManager().getFirstIndex(regionId);
+                int baseVertex       = sectionManager.getRegionManager().getBaseVertex(regionId);
+
                 MemoryUtil.memPutInt(addr, indicesPerRegion); addr += 4;
                 MemoryUtil.memPutInt(addr, 1);                addr += 4;
                 MemoryUtil.memPutInt(addr, firstIndex);       addr += 4;
@@ -225,11 +228,9 @@ public class RenderPipeline {
         glDepthFunc(GL_LEQUAL);
         glDepthMask(false);
         if (DEBUG_RENDER_LEVEL == 1 && WRITE_DEPTH) glDepthMask(true);
-        if (DEBUG_RENDER_LEVEL != 1) glColorMask(false, false, false, false);
+        if (DEBUG_RENDER_LEVEL != 1)        if (DEBUG_RENDER_LEVEL != 1) glColorMask(false, false, false, false);
 
         regionRasterizer.raster(visibleRegions,
-                                indirectCommandBuffer
-                                        regionRasterizer.raster(visibleRegions,
                                 indirectCommandBuffer.getId(),
                                 IS_NVIDIA);
 
