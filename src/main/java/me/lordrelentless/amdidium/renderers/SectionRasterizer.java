@@ -1,5 +1,6 @@
 package me.lordrelentless.amdidium.renderers;
 
+import me.lordrelentless.amdidium.Amdidium;
 import me.lordrelentless.amdidium.gl.shader.Shader;
 import me.lordrelentless.amdidium.sodiumCompat.ShaderLoader;
 import net.minecraft.util.Identifier;
@@ -21,10 +22,10 @@ public class SectionRasterizer extends Phase {
             .compile();
 
     public void raster(int regionCount, int commandBufferId, boolean isNvidia) {
-        Shader shader = isNvidia ? shaderNV : shaderGL;
+        Shader shader = (Amdidium.CAPABILITIES != null && Amdidium.CAPABILITIES.supportsMeshPath() && isNvidia) ? shaderNV : shaderGL;
         shader.bind();
 
-        if (isNvidia) {
+        if (isNvidia && Amdidium.CAPABILITIES != null && Amdidium.CAPABILITIES.supportsMeshPath()) {
             glDrawMeshTasksNV(0, regionCount);
         } else {
             org.lwjgl.opengl.GL45C.glBindBuffer(org.lwjgl.opengl.GL45C.GL_DRAW_INDIRECT_BUFFER, commandBufferId);

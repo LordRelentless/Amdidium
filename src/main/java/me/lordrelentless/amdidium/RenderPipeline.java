@@ -27,10 +27,10 @@ import java.util.List;
 
 import static me.lordrelentless.amdidium.gl.buffers.PersistentSparseAddressableBuffer.alignUp;
 import static org.lwjgl.opengl.ARBDirectStateAccess.*;
-import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL11C.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL30C.GL_R8UI;
 import static org.lwjgl.opengl.GL30C.GL_RED_INTEGER;
-import static org.lwjgl.opengl.GL42.*;
+import static org.lwjgl.opengl.GL42C.*;
 import static org.lwjgl.opengl.GL43C.*;
 
 public class RenderPipeline {
@@ -41,10 +41,14 @@ public class RenderPipeline {
         DIRECTX
     }
 
-    // Detect NV mesh shader support
     public static final boolean IS_NVIDIA =
+            Amdidium.PLATFORM == RenderCapabilities.Platform.NVIDIA &&
             org.lwjgl.opengl.GL.getCapabilities().GL_NV_mesh_shader &&
             org.lwjgl.opengl.GL.getCapabilities().GL_NV_vertex_buffer_unified_memory;
+
+    public static final boolean USE_MESH_PATH =
+            (Amdidium.PLATFORM == RenderCapabilities.Platform.NVIDIA || Amdidium.PLATFORM == RenderCapabilities.Platform.GENERIC) &&
+            Amdidium.CAPABILITIES != null && Amdidium.CAPABILITIES.supportsMeshPath();
 
     private final Backend backend;
 
@@ -115,7 +119,7 @@ public class RenderPipeline {
         this.sectionManager = sectionManager;
 
         this.backend = Backend.OPENGL;
-        this.compiledForFog = AmdidiumConfig.render_fog;
+        this.compiledForFog = Amdidium.config.render_fog;
 
         terrainRasterizer = new PrimaryTerrainRasterizer();
         regionRasterizer = new RegionRasterizer();
@@ -172,7 +176,10 @@ public class RenderPipeline {
     public void renderFrame(Viewport frustum,
                             ChunkRenderMatrices crm,
                             double px, double py, double pz) {
-        // ... unchanged frustum culling, scene uniform upload, regionMap building ...
+        int visibleRegions = 0;
+        int regionSortSize = 0;
+        short[] regionMap = new short[sectionManager.getRegionManager().maxRegions()];
+        int[] visible = new int[sectionManager.getRegionManager().maxRegions()];
 
         // Backend-specific draw path
         switch (backend) {
@@ -180,8 +187,8 @@ public class RenderPipeline {
                     visibleRegions,
                     regionSortSize,
                     regionMap,
-                    DEBUG_RENDER_LEVEL,
-                    WRITE_DEPTH
+                    0,
+                    true
             );
             case VULKAN -> { /* TODO */ }
             case DIRECTX -> { /* TODO */ }
@@ -197,7 +204,7 @@ public class RenderPipeline {
         glBindBufferRange(GL_UNIFORM_BUFFER, 0, sceneUniform.getId(), 0, SCENE_SIZE);
 
         // Fill AMD indirect command buffer
-        if (!IS_NVIDIA && visibleRegions > 0) {
+        if (!USE_MESH_PATH && visibleRegions > 0) {
             long addr = uploadStream.upload(indirectCommandBuffer, 0, visibleRegions * 20L);
             for (int i = 0; i < visibleRegions; i++) {
                 int regionId = regionMap[i];
@@ -220,7 +227,7 @@ public class RenderPipeline {
             terrainRasterizer.raster(prevRegionCount,
                                      terrainCommandBuffer.getDeviceAddress(),
                                      indirectCommandBuffer.getId(),
-                                     IS_NVIDIA);
+                                     USE_MESH_PATH && IS_NVIDIA);
             glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT);
         }
 
@@ -232,13 +239,13 @@ public class RenderPipeline {
 
         regionRasterizer.raster(visibleRegions,
                                 indirectCommandBuffer.getId(),
-                                IS_NVIDIA);
+                                USE_MESH_PATH && IS_NVIDIA);
 
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
         sectionRasterizer.raster(visibleRegions,
                                  indirectCommandBuffer.getId(),
-                                 IS_NVIDIA);
+                                 USE_MESH_PATH && IS_NVIDIA);
 
         glDepthMask(true);
         glColorMask(true, true, true, true);
@@ -247,12 +254,12 @@ public class RenderPipeline {
 
         prevRegionCount = visibleRegions;
 
-        if (AmdidiumConfig.enable_temporal_coherence) {
+        if (Amdidium.config.enable_temporal_coherence) {
             glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
             temporalRasterizer.raster(visibleRegions,
                                       terrainCommandBuffer.getDeviceAddress(),
                                       indirectCommandBuffer.getId(),
-                                      IS_NVIDIA);
+                                      USE_MESH_PATH && IS_NVIDIA);
         }
 
         // Visibility tracking
@@ -274,6 +281,24 @@ public class RenderPipeline {
 
         glDepthFunc(GL11C.GL_LEQUAL);
         glDisable(GL_DEPTH_TEST);
+    }
+
+    public void setTransformation(int id, Matrix4fc transform) {
+        if (id < 0 || id >= RegionManager.MAX_TRANSFORMATION_COUNT) {
+            return;
+        }
+        long ptr = this.uploadStream.upload(this.transformationArray, id * (4 * 4 * 4), 4 * 4 * 4);
+        transform.getToAddress(ptr);
+    }
+
+    public void setOrigin(int id, int x, int y, int z) {
+        if (id < 0 || id >= RegionManager.MAX_TRANSFORMATION_COUNT) {
+            return;
+        }
+        long ptr = this.uploadStream.upload(this.originOffsetArray, id * 8L, 8);
+        MemoryUtil.memPutInt(ptr, x);
+        MemoryUtil.memPutInt(ptr + 4, y);
+        MemoryUtil.memPutInt(ptr + 8, z);
     }
 
     void enqueueRegionSort(int regionId) {
@@ -316,13 +341,13 @@ public class RenderPipeline {
         translucencyTerrainRasterizer.raster(prevRegionCount,
                                              translucencyCommandBuffer.getDeviceAddress(),
                                              indirectCommandBuffer.getId(),
-                                             IS_NVIDIA);
+                                             USE_MESH_PATH && IS_NVIDIA);
 
         RenderSystem.disableBlend();
         RenderSystem.defaultBlendFunc();
         glDisable(GL_DEPTH_TEST);
 
-        if (AmdidiumConfig.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+        if (Amdidium.config.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
             downloadStream.download(statisticsBuffer, 0, 4 * 4, (addr) -> {
                 stats.regionCount = MemoryUtil.memGetInt(addr);
                 stats.sectionCount = MemoryUtil.memGetInt(addr + 4);
@@ -330,7 +355,7 @@ public class RenderPipeline {
             });
         }
 
-        if (AmdidiumConfig.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+        if (Amdidium.config.statistics_level.ordinal() > StatisticsLoggingLevel.FRUSTUM.ordinal()) {
             long upload = this.uploadStream.upload(statisticsBuffer, 0, 4 * 4);
             MemoryUtil.memSet(upload, 0, 4 * 4);
         }
@@ -362,19 +387,19 @@ public class RenderPipeline {
     }
 
     public void addDebugInfo(List<String> info) {
-        if (AmdidiumConfig.statistics_level != StatisticsLoggingLevel.NONE) {
+        if (Amdidium.config.statistics_level != StatisticsLoggingLevel.NONE) {
             StringBuilder builder = new StringBuilder();
             builder.append("Statistics: ");
-            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.FRUSTUM.ordinal()) {
+            if (Amdidium.config.statistics_level.ordinal() >= StatisticsLoggingLevel.FRUSTUM.ordinal()) {
                 builder.append("F: ").append(stats.frustumCount);
             }
-            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.REGIONS.ordinal()) {
+            if (Amdidium.config.statistics_level.ordinal() >= StatisticsLoggingLevel.REGIONS.ordinal()) {
                 builder.append(", R: ").append(stats.regionCount);
             }
-            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.SECTIONS.ordinal()) {
+            if (Amdidium.config.statistics_level.ordinal() >= StatisticsLoggingLevel.SECTIONS.ordinal()) {
                 builder.append(", S: ").append(stats.sectionCount);
             }
-            if (AmdidiumConfig.statistics_level.ordinal() >= StatisticsLoggingLevel.QUADS.ordinal()) {
+            if (Amdidium.config.statistics_level.ordinal() >= StatisticsLoggingLevel.QUADS.ordinal()) {
                 builder.append(", Q: ").append(stats.quadCount);
             }
             info.addAll(List.of(builder.toString().split("\n")));
@@ -382,7 +407,7 @@ public class RenderPipeline {
     }
 
     public void reloadShaders() {
-        this.compiledForFog = AmdidiumConfig.render_fog;
+        this.compiledForFog = Amdidium.config.render_fog;
         terrainRasterizer.delete();
         regionRasterizer.delete();
         sectionRasterizer.delete();

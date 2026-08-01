@@ -1,13 +1,12 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectList;
-import me.cortex.nvidium.gl.RenderDevice;
-import me.cortex.nvidium.gl.buffers.Buffer;
-import me.cortex.nvidium.gl.buffers.PersistentClientMappedBuffer;
-import me.cortex.nvidium.util.SegmentedManager;
+import me.lordrelentless.amdidium.gl.RenderDevice;
+import me.lordrelentless.amdidium.gl.buffers.Buffer;
+import me.lordrelentless.amdidium.gl.buffers.PersistentClientMappedBuffer;
 
 import java.util.ArrayList;
 import java.util.List;

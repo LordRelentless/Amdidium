@@ -4,8 +4,6 @@ import me.lordrelentless.amdidium.config.AmdidiumConfig;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.util.Util;
-import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL11;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +16,8 @@ public class Amdidium {
     public static boolean IS_DEBUG = System.getProperty("amdidium.isDebug", "false").equals("TRUE");
     public static boolean SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER = true;
     public static boolean FORCE_DISABLE = false;
+    public static RenderCapabilities.Platform PLATFORM = RenderCapabilities.Platform.DISABLED;
+    public static RenderCapabilities.Capabilities CAPABILITIES = null;
 
     public static AmdidiumConfig config = AmdidiumConfig.loadOrCreate();
 
@@ -39,77 +39,31 @@ public class Amdidium {
             return;
         }
 
-        // Ensure a context exists before querying capabilities/vendor
-        var cap = GL.getCapabilities();
+        var capabilities = RenderCapabilities.detect();
+        CAPABILITIES = capabilities;
+        PLATFORM = RenderCapabilities.resolvePlatform(capabilities.vendor, capabilities);
 
-        // Vendor check: we only enable on AMD GPUs
-        String vendor = GL11.glGetString(GL11.GL_VENDOR);
-        String renderer = GL11.glGetString(GL11.GL_RENDERER);
-
-        boolean isAMD =
-                vendor != null && (
-                        vendor.toLowerCase().contains("amd") ||
-                        vendor.toLowerCase().contains("advanced micro devices") ||
-                        vendor.toLowerCase().contains("ati")
-                );
-
-        if (!isAMD) {
-            LOGGER.warn("Amdidium is designed for AMD GPUs only. Detected vendor: '{}' (renderer: '{}')", vendor, renderer);
-            IS_COMPATIBLE = false;
-            IS_ENABLED = false;
-            return;
-        }
-
-        // --- AMD / ARB / EXT feature checks ---
-
-        // Mesh shaders: prefer standard/vendor-neutral paths when present.
-        boolean hasMeshShader =
-                cap.GL_ARB_mesh_shader || cap.GL_EXT_mesh_shader;
-
-        // Persistent buffer and sparse buffer support:
-        // AMD typically exposes ARB_buffer_storage + ARB_sparse_buffer.
-        boolean hasPersistentBuffers =
-                cap.GL_ARB_buffer_storage && cap.GL_ARB_sparse_buffer;
-
-        // Multi-draw indirect: check ARB and AMD variants.
-        boolean hasMultiDrawIndirect =
-                cap.GL_ARB_multi_draw_indirect || cap.GL_AMD_multi_draw_indirect;
-
-        // You can add more AMD-specific goodies here later if Amdidium uses them:
-        // e.g. cap.GL_AMD_gpu_shader_int64, cap.GL_AMD_texture_gather_bias_lod, etc.
-
-        boolean supported = hasMeshShader && hasPersistentBuffers && hasMultiDrawIndirect;
+        boolean supported = RenderCapabilities.isCompatible(capabilities);
         IS_COMPATIBLE = supported;
 
         if (!supported) {
-            LOGGER.warn("Amdidium requirements not met on this AMD GPU:");
-            if (!hasMeshShader) {
-                LOGGER.warn(" - Missing mesh shader support (ARB_mesh_shader or EXT_mesh_shader)");
-            }
-            if (!hasPersistentBuffers) {
-                LOGGER.warn(" - Missing persistent+sparse buffer support (ARB_buffer_storage + ARB_sparse_buffer)");
-            }
-            if (!hasMultiDrawIndirect) {
-                LOGGER.warn(" - Missing multi-draw indirect support (ARB_multi_draw_indirect or AMD_multi_draw_indirect)");
-            }
-            LOGGER.warn("Disabling Amdidium");
+            LOGGER.warn("Amdidium cannot enable on this system: vendor='{}' renderer='{}' version='{}'", capabilities.vendor, capabilities.renderer, capabilities.version);
             IS_ENABLED = false;
             return;
         }
 
-        LOGGER.info("All AMD-targeted OpenGL capabilities required by Amdidium are present");
-
-        // Capability-based fallback: if sparse/persistent buffers are incomplete, drop to a safer path.
-        if (!hasPersistentBuffers) {
+        if (!capabilities.persistentBuffers || !capabilities.sparseBuffers) {
             LOGGER.warn("Sparse/persistent buffer support incomplete; using fallback terrain buffer. Expect increased VRAM usage.");
             SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER = false;
         }
 
-        // Optional: OS info is now just informational, not a trigger for fallbacks.
         Util.OperatingSystem os = Util.getOperatingSystem();
-        LOGGER.info("Amdidium running on AMD GPU, OS: {}", os.name());
+        LOGGER.info("Detected {} GPU platform via vendor '{}' renderer '{}' with meshShaders={}, taskShaders={}, bindlessTextures={}, shaderBufferLoad={}, shaderStorageBuffer={}, persistentBuffers={}, sparseBuffers={}, bufferAddress={}, gl45Compatible={}",
+                PLATFORM, capabilities.vendor, capabilities.renderer,
+                capabilities.meshShaders, capabilities.taskShaders, capabilities.bindlessTextures,
+                capabilities.shaderBufferLoad, capabilities.shaderStorageBuffer,
+                capabilities.persistentBuffers, capabilities.sparseBuffers, capabilities.bufferAddress, capabilities.gl45Compatible);
 
-        LOGGER.info("Enabling Amdidium");
         IS_ENABLED = true;
     }
 }

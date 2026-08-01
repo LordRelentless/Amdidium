@@ -1,4 +1,4 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
 import it.unimi.dsi.fastutil.ints.IntAVLTreeSet;
 import it.unimi.dsi.fastutil.ints.IntSortedSet;

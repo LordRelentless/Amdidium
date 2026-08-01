@@ -25,7 +25,7 @@ import static org.lwjgl.opengl.GL11.glGetInteger;
 import static org.lwjgl.opengl.ATIMeminfo.GL_VBO_FREE_MEMORY_ATI;
 
 public class AmdidiumWorldRenderer {
-    private static final RenderDevice device = new RenderDevice();
+    private static final RenderDevice device = new me.lordrelentless.amdidium.gl.opengl.OpenGLRenderDevice();
 
     private final UploadingBufferStream uploadStream;
     private final DownloadTaskStream downloadStream;

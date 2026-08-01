@@ -1,4 +1,4 @@
-package me.lordrelentless.amdidium.gl.opengl.nv;
+package me.lordrelentless.amdidium.managers;
 
 import me.lordrelentless.amdidium.gl.RenderDevice;
 import me.lordrelentless.amdidium.gl.buffers.Buffer;
@@ -13,7 +13,7 @@ import static me.lordrelentless.amdidium.gl.shader.ShaderType.MESH;
 import static org.lwjgl.opengl.GL43C.GL_SHADER_STORAGE_BARRIER_BIT;
 import static org.lwjgl.opengl.NVMeshShader.glDrawMeshTasksNV;
 
-public class RegionVisibilityTrackerGL_NV {
+public class RegionVisibilityTracker {
 
     private final Shader shader = Shader.make()
             .addSource(MESH, ShaderLoader.parse(Identifier.of("amdidium", "occlusion/queries/region/mesh.glsl")))
@@ -26,7 +26,7 @@ public class RegionVisibilityTrackerGL_NV {
 
     private int frame = 0;
 
-    public RegionVisibilityTrackerGL_NV(DownloadTaskStream downStream, int maxRegions) {
+    public RegionVisibilityTracker(DownloadTaskStream downStream, int maxRegions) {
         this.downStream = downStream;
         this.visible = new int[maxRegions];
         this.frustum = new int[maxRegions];

@@ -1,4 +1,4 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
 import java.lang.ref.WeakReference;
 import java.util.LinkedHashSet;

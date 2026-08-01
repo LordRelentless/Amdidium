@@ -1,4 +1,4 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;

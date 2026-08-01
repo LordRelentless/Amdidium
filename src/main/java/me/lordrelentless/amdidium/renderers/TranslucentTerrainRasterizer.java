@@ -11,7 +11,6 @@ import org.lwjgl.opengl.GL30C;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL45C;
 
-import static me.lordrelentless.amdidium.RenderPipeline.GL_DRAW_INDIRECT_ADDRESS_NV;
 import static me.lordrelentless.amdidium.gl.shader.ShaderType.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL11C.GL_TEXTURE_WRAP_S;
@@ -51,7 +50,7 @@ public class TranslucentTerrainRasterizer extends Phase {
 
     // Translucency is rendered in a very cursed and incorrect way:
     // it hijacks the unassigned indirect command dispatch and uses that to dispatch translucent chunks.
-    public void raster(int regionCount, long commandAddr) {
+    public void raster(int regionCount, long commandAddr, int commandBufferId, boolean isNvidia) {
         shader.bind();
 
         int blockId = MinecraftClient.getInstance()
@@ -70,7 +69,7 @@ public class TranslucentTerrainRasterizer extends Phase {
         setTexture(blockId, 0);
         setTexture(lightId, 1);
 
-        glBufferAddressRangeNV(GL_DRAW_INDIRECT_ADDRESS_NV, 0, commandAddr, regionCount * 8L);
+        glBufferAddressRangeNV(0x8F3F /* GL_DRAW_INDIRECT_ADDRESS_NV */, 0, commandAddr, regionCount * 8L);
         glMultiDrawMeshTasksIndirectNV(0, regionCount, 0);
 
         GL45C.glBindSampler(0, 0);

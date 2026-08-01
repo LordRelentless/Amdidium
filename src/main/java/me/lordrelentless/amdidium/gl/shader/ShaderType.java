@@ -2,19 +2,17 @@ package me.lordrelentless.amdidium.gl.shader;
 
 /**
  * Backend-agnostic shader stage enumeration.
- *
- * Each backend (OpenGL, Vulkan, DirectX) maps these stages to its own API:
- *
- *  - OpenGL: GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc.
- *  - Vulkan: VkShaderStageFlagBits
- *  - DirectX: D3D12_SHADER_VISIBILITY / pipeline stage slots
- *
- * Mesh and task shaders are included for Vulkan/DX12 and for OpenGL ARB_mesh_shader.
  */
 public enum ShaderType {
-    VERTEX,
-    FRAGMENT,
-    COMPUTE,
-    MESH,
-    TASK;
+    VERTEX(org.lwjgl.opengl.GL20C.GL_VERTEX_SHADER),
+    FRAGMENT(org.lwjgl.opengl.GL20C.GL_FRAGMENT_SHADER),
+    COMPUTE(org.lwjgl.opengl.GL43C.GL_COMPUTE_SHADER),
+    MESH(org.lwjgl.opengl.GL43C.GL_COMPUTE_SHADER),
+    TASK(org.lwjgl.opengl.GL43C.GL_COMPUTE_SHADER);
+
+    public final int gl;
+
+    ShaderType(int gl) {
+        this.gl = gl;
+    }
 }

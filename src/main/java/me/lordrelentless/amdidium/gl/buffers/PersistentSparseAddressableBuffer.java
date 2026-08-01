@@ -5,11 +5,9 @@ import me.lordrelentless.amdidium.Amdidium;
 import me.lordrelentless.amdidium.config.AmdidiumConfig;
 import me.lordrelentless.amdidium.gl.GlObject;
 
-import static org.lwjgl.opengl.ARBDirectStateAccess.*;
-import static org.lwjgl.opengl.ARBSparseBuffer.*;
-import static org.lwjgl.opengl.GL15C.*;
-import static org.lwjgl.opengl.GL21.*;
-import static org.lwjgl.opengl.GL45C.*;
+import static org.lwjgl.opengl.GL15C.glDeleteBuffers;
+import static org.lwjgl.opengl.GL45C.glCreateBuffers;
+import static org.lwjgl.opengl.GL45C.glNamedBufferStorage;
 
 /**
  * Backend-agnostic sparse buffer with optional device address support.
@@ -54,20 +52,12 @@ public class PersistentSparseAddressableBuffer extends GlObject implements IDevi
     // ───────────────────────────────────────────────────────────────
     private void initOpenGL() {
         // Allocate sparse storage
-        glNamedBufferStorage(id, size, GL_SPARSE_STORAGE_BIT_ARB, 0);
-
-        // Try to acquire a GPU address (ARB_buffer_address)
-        if (supportsExtension("GL_ARB_buffer_address")) {
-            long[] out = new long[1];
-            glGetNamedBufferParameterui64vARB(id, GL_BUFFER_GPU_ADDRESS_ARB, out);
-            glMakeNamedBufferResidentARB(id, GL_READ_WRITE);
-            deviceAddress = out[0];
-        }
+        glNamedBufferStorage(id, size, 0);
     }
 
     private void commitPagesGL(int page, int count, boolean commit) {
-        glBindBuffer(GL_ARRAY_BUFFER, id);
-        glBufferPageCommitmentARB(GL_ARRAY_BUFFER, PAGE_SIZE * page, PAGE_SIZE * count, commit);
+        org.lwjgl.opengl.GL15C.glBindBuffer(org.lwjgl.opengl.GL15C.GL_ARRAY_BUFFER, id);
+        org.lwjgl.opengl.ARBSparseBuffer.glBufferPageCommitmentARB(org.lwjgl.opengl.GL15C.GL_ARRAY_BUFFER, PAGE_SIZE * page, PAGE_SIZE * count, commit);
     }
 
     // ───────────────────────────────────────────────────────────────
@@ -142,12 +132,6 @@ public class PersistentSparseAddressableBuffer extends GlObject implements IDevi
     public void delete() {
         super.free0();
 
-        if (deviceAddress != 0 && supportsExtension("GL_ARB_buffer_address")) {
-            try {
-                glMakeNamedBufferNonResidentARB(id);
-            } catch (Throwable ignored) {}
-        }
-
         glDeleteBuffers(id);
     }
 
@@ -161,16 +145,4 @@ public class PersistentSparseAddressableBuffer extends GlObject implements IDevi
         return size;
     }
 
-    // ───────────────────────────────────────────────────────────────
-    //  Utility
-    // ───────────────────────────────────────────────────────────────
-    private static boolean supportsExtension(String ext) {
-        int count = glGetInteger(GL_NUM_EXTENSIONS);
-        for (int i = 0; i < count; i++) {
-            if (ext.equals(glGetStringi(GL_EXTENSIONS, i))) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

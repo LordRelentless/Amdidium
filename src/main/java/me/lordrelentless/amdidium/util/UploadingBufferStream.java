@@ -1,25 +1,18 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
-import it.unimi.dsi.fastutil.longs.LongList;
-import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
-import me.cortex.nvidium.gl.GlFence;
-import me.cortex.nvidium.gl.RenderDevice;
-import me.cortex.nvidium.gl.buffers.Buffer;
-import me.cortex.nvidium.gl.buffers.PersistentClientMappedBuffer;
+import me.lordrelentless.amdidium.gl.GlFence;
+import me.lordrelentless.amdidium.gl.RenderDevice;
+import me.lordrelentless.amdidium.gl.buffers.Buffer;
+import me.lordrelentless.amdidium.gl.buffers.PersistentClientMappedBuffer;
 
-import java.lang.ref.WeakReference;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.LinkedList;
-import java.util.List;
 
-import static me.cortex.nvidium.util.SegmentedManager.SIZE_LIMIT;
+import static me.lordrelentless.amdidium.util.SegmentedManager.SIZE_LIMIT;
 import static org.lwjgl.opengl.ARBDirectStateAccess.glCopyNamedBufferSubData;
 import static org.lwjgl.opengl.ARBDirectStateAccess.glFlushMappedNamedBufferRange;
-import static org.lwjgl.opengl.ARBMapBufferRange.*;
 import static org.lwjgl.opengl.GL11.glFinish;
-import static org.lwjgl.opengl.GL11.glGetError;
 import static org.lwjgl.opengl.GL42.glMemoryBarrier;
 import static org.lwjgl.opengl.GL42C.GL_BUFFER_UPDATE_BARRIER_BIT;
 import static org.lwjgl.opengl.GL44.GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT;
@@ -76,13 +69,13 @@ public class UploadingBufferStream {
             this.offset += size;
         }
 
-        if (this.caddr + size > this.uploadBuffer.size) {
+        if (this.caddr + size > this.uploadBuffer.getSize()) {
             throw new IllegalStateException();
         }
 
         this.uploadList.add(new UploadData(buffer, addr, destOffset, size));
 
-        return this.uploadBuffer.addr + addr;
+        return this.uploadBuffer.clientAddress() + addr;
     }
 
 

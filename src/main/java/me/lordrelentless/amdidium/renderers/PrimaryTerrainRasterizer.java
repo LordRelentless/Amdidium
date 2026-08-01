@@ -1,6 +1,7 @@
 package me.lordrelentless.amdidium.renderers;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import me.lordrelentless.amdidium.Amdidium;
 import me.lordrelentless.amdidium.gl.shader.Shader;
 import me.lordrelentless.amdidium.sodiumCompat.ShaderLoader;
 import me.lordrelentless.amdidium.mixin.minecraft.LightMapAccessor;
@@ -74,7 +75,7 @@ public class PrimaryTerrainRasterizer extends Phase {
             glMultiDrawMeshTasksIndirectNV(0, regionCount, 0);
         } else {
             GL45C.glBindBuffer(GL45C.GL_DRAW_INDIRECT_BUFFER, commandBufferId);
-            GL43C.glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, regionCount, 20);
+            org.lwjgl.opengl.GL43.glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0, regionCount, 20);
         }
 
         GL45C.glBindSampler(0, 0);

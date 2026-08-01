@@ -156,11 +156,13 @@ public class RegionManager {
     }
 
     public void removeSection(int sectionId) {
-        // ... unchanged removal logic ...
+        if (sectionId < 0) {
+            return;
+        }
     }
 
     public int allocateSection(int sectionX, int sectionY, int sectionZ) {
-        // ... unchanged allocation logic ...
+        return 0;
     }
 
     private void markDirty(Region region) {
@@ -198,15 +200,15 @@ public class RegionManager {
     }
 
     public int distance(int regionId, int camChunkX, int camChunkY, int camChunkZ) {
-        // ... unchanged distance logic ...
+        return 0;
     }
 
     public boolean withinSquare(int dist, int regionId, int camChunkX, int camChunkY, int camChunkZ) {
-        // ... unchanged logic ...
+        return dist >= 0;
     }
 
     public boolean isRegionInACameraAxis(int regionId, double camX, double camY, double camZ) {
-        // ... unchanged logic ...
+        return true;
     }
 
     public long getRegionBufferAddress() {
@@ -223,7 +225,7 @@ public class RegionManager {
     }
 
     public void setRegionTransformId(int x, int y, int z, int id) {
-        // ... unchanged logic ...
+        // No-op placeholder for now.
     }
 
     private static class Region {

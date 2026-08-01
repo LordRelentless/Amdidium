@@ -2,9 +2,9 @@ package me.lordrelentless.amdidium.gl.buffers;
 
 import me.lordrelentless.amdidium.gl.GlObject;
 
-import static org.lwjgl.opengl.ARBDirectStateAccess.*;
-import static org.lwjgl.opengl.GL30C.*;
-import static org.lwjgl.opengl.GL44.*;
+import static org.lwjgl.opengl.ARBDirectStateAccess.nglMapNamedBufferRange;
+import static org.lwjgl.opengl.GL45C.glCreateBuffers;
+import static org.lwjgl.opengl.GL45C.glDeleteBuffers;
 
 /**
  * A persistently mapped CPU-visible buffer.
@@ -16,33 +16,18 @@ import static org.lwjgl.opengl.GL44.*;
  */
 public class PersistentClientMappedBuffer extends GlObject implements IClientMappedBuffer {
 
-    private final long addr;
-    private final long size;
+    protected final long addr;
+    protected final long size;
 
     public PersistentClientMappedBuffer(long size) {
         super(glCreateBuffers());
         this.size = size;
 
         // Allocate immutable storage with persistent client mapping
-        glNamedBufferStorage(
-                id,
-                size,
-                GL_MAP_PERSISTENT_BIT |
-                GL_MAP_WRITE_BIT |
-                GL_CLIENT_STORAGE_BIT,
-                0
-        );
+        org.lwjgl.opengl.GL45C.glNamedBufferStorage(id, size, 0);
 
         // Map the buffer persistently
-        addr = nglMapNamedBufferRange(
-                id,
-                0,
-                size,
-                GL_MAP_PERSISTENT_BIT |
-                GL_MAP_WRITE_BIT |
-                GL_MAP_UNSYNCHRONIZED_BIT |
-                GL_MAP_FLUSH_EXPLICIT_BIT
-        );
+        addr = nglMapNamedBufferRange(id, 0, size, org.lwjgl.opengl.GL30C.GL_MAP_WRITE_BIT);
 
         if (addr == 0) {
             throw new IllegalStateException("Failed to map persistent client buffer");
@@ -62,7 +47,7 @@ public class PersistentClientMappedBuffer extends GlObject implements IClientMap
     @Override
     public void delete() {
         super.free0();
-        glUnmapNamedBuffer(id);
+        org.lwjgl.opengl.GL30.glUnmapBuffer(org.lwjgl.opengl.GL30.GL_ARRAY_BUFFER);
         glDeleteBuffers(id);
     }
 

@@ -9,7 +9,6 @@ import org.lwjgl.opengl.GL12C;
 import org.lwjgl.opengl.GL45;
 import org.lwjgl.opengl.GL45C;
 
-import static me.lordrelentless.amdidium.RenderPipeline.GL_DRAW_INDIRECT_ADDRESS_NV;
 import static me.lordrelentless.amdidium.gl.shader.ShaderType.*;
 import static org.lwjgl.opengl.GL11C.*;
 import static org.lwjgl.opengl.GL11C.GL_TEXTURE_WRAP_S;
@@ -38,7 +37,7 @@ public class TemporalTerrainRasterizer extends Phase {
         GL45C.glSamplerParameteri(lightSampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
 
-    public void raster(int regionCount, long commandAddr) {
+    public void raster(int regionCount, long commandAddr, int commandBufferId, boolean isNvidia) {
         shader.bind();
 
         int blockId = MinecraftClient.getInstance()
@@ -58,7 +57,7 @@ public class TemporalTerrainRasterizer extends Phase {
         GL45C.glBindTextureUnit(1, lightId);
         GL45C.glBindSampler(1, lightSampler);
 
-        glBufferAddressRangeNV(GL_DRAW_INDIRECT_ADDRESS_NV, 0, commandAddr, regionCount * 8L);
+        glBufferAddressRangeNV(0x8F3F /* GL_DRAW_INDIRECT_ADDRESS_NV */, 0, commandAddr, regionCount * 8L);
         glMultiDrawMeshTasksIndirectNV(0, regionCount, 0);
 
         GL45C.glBindSampler(0, 0);

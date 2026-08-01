@@ -1,7 +1,7 @@
-package me.cortex.nvidium.sodiumCompat;
+package me.lordrelentless.amdidium.sodiumCompat;
 
-import me.cortex.nvidium.NvidiumWorldRenderer;
+import me.lordrelentless.amdidium.AmdidiumWorldRenderer;
 
-public interface INvidiumWorldRendererGetter {
-    NvidiumWorldRenderer getRenderer();
+public interface IAmdidiumWorldRendererGetter {
+    AmdidiumWorldRenderer getRenderer();
 }

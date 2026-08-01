@@ -1,9 +1,9 @@
-package me.cortex.nvidium.util;
+package me.lordrelentless.amdidium.util;
 
-import me.cortex.nvidium.Nvidium;
-import me.cortex.nvidium.gl.RenderDevice;
-import me.cortex.nvidium.gl.buffers.IDeviceMappedBuffer;
-import me.cortex.nvidium.gl.buffers.PersistentSparseAddressableBuffer;
+import me.lordrelentless.amdidium.Amdidium;
+import me.lordrelentless.amdidium.gl.RenderDevice;
+import me.lordrelentless.amdidium.gl.buffers.IDeviceMappedBuffer;
+import me.lordrelentless.amdidium.gl.buffers.PersistentSparseAddressableBuffer;
 
 //TODO: make it not remove and immediately deallocate the sparse pages, wait until the end of a frame to deallocate
 // since committing pages is not cheap
@@ -21,7 +21,7 @@ public class BufferArena {
         this.device = device;
         this.vertexFormatSize = vertexFormatSize;
         this.memory_size = memory;
-        if (Nvidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER) {
+        if (Amdidium.SUPPORTS_PERSISTENT_SPARSE_ADDRESSABLE_BUFFER) {
             buffer = device.createSparseBuffer(80000000000L);//Create a 80gb buffer
         } else {
             buffer = device.createDeviceOnlyMappedBuffer(memory);
