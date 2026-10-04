@@ -159,10 +159,85 @@ public class RegionManager {
         if (sectionId < 0) {
             return;
         }
+
+        int regionId = sectionId >>> 8;
+        int sectionPosition = sectionId & 0xFF;
+        Region region = this.regions[regionId];
+        if (region == null) {
+            return;
+        }
+
+        int compactId = region.pos2id[sectionPosition];
+        if (compactId < 0 || compactId >= region.count) {
+            return;
+        }
+
+        MemoryUtil.memSet(region.sectionData + (long) compactId * SectionManager.SECTION_SIZE,
+                0, SectionManager.SECTION_SIZE);
+        region.pos2id[sectionPosition] = -1;
+        region.id2pos[compactId] = -1;
+        int lastCompactId = --region.count;
+
+        if (lastCompactId != compactId) {
+            int movedPosition = region.id2pos[lastCompactId];
+            long from = region.sectionData + (long) lastCompactId * SectionManager.SECTION_SIZE;
+            long to = region.sectionData + (long) compactId * SectionManager.SECTION_SIZE;
+            MemoryUtil.memCopy(from, to, SectionManager.SECTION_SIZE);
+            MemoryUtil.memSet(from, 0, SectionManager.SECTION_SIZE);
+
+            region.id2pos[lastCompactId] = -1;
+            region.pos2id[movedPosition] = compactId;
+            region.id2pos[compactId] = movedPosition;
+
+            long packedPosition = to + 4;
+            int packedData = MemoryUtil.memGetInt(packedPosition);
+            packedData = (packedData & ~(0xFF << 18)) | (compactId << 18);
+            MemoryUtil.memPutInt(packedPosition, packedData);
+        }
+
+        if (region.count == 0) {
+            region.isRemoved = true;
+            region.delete();
+            this.regions[regionId] = null;
+            this.idProvider.release(regionId);
+            this.regionMap.remove(region.key);
+        }
+
+        this.markDirty(region);
     }
 
     public int allocateSection(int sectionX, int sectionY, int sectionZ) {
-        return 0;
+        int regionX = sectionX >> 3;
+        int regionY = sectionY >> 2;
+        int regionZ = sectionZ >> 3;
+        long regionKey = ChunkSectionPos.asLong(regionX, regionY, regionZ);
+        int regionId = this.regionMap.computeIfAbsent(regionKey, key -> this.idProvider.provide());
+
+        if (regionId >= this.regions.length) {
+            this.regionMap.remove(regionKey);
+            this.idProvider.release(regionId);
+            throw new IllegalStateException("Region capacity exhausted");
+        }
+
+        if (this.regions[regionId] == null) {
+            Region region = new Region(regionId, regionX, regionY, regionZ);
+            region.transformationId = this.regionTransformationIdMapping.get(regionKey);
+            this.regions[regionId] = region;
+        }
+
+        Region region = this.regions[regionId];
+        int sectionPosition = ((sectionY & 3) << 6) | (sectionX & 7) | ((sectionZ & 7) << 3);
+        int compactId = region.count;
+        if (region.pos2id[sectionPosition] != -1 || compactId >= region.id2pos.length || region.id2pos[compactId] != -1) {
+            throw new IllegalStateException("Section slot is already allocated");
+        }
+
+        region.pos2id[sectionPosition] = compactId;
+        region.id2pos[compactId] = sectionPosition;
+        region.count++;
+        this.markDirty(region);
+        region.verifyIntegrity();
+        return sectionPosition | (regionId << 8);
     }
 
     private void markDirty(Region region) {
@@ -200,15 +275,27 @@ public class RegionManager {
     }
 
     public int distance(int regionId, int camChunkX, int camChunkY, int camChunkZ) {
-        return 0;
+        Region region = this.regions[regionId];
+        return (Math.abs((region.rx << 3) + 4 - camChunkX)
+            + Math.abs((region.ry << 2) + 2 - camChunkY)
+            + Math.abs((region.rz << 3) + 4 - camChunkZ)
+            + Math.abs((region.rx << 3) + 3 - camChunkX)
+            + Math.abs((region.ry << 2) + 1 - camChunkY)
+            + Math.abs((region.rz << 3) + 3 - camChunkZ)) >> 1;
     }
 
     public boolean withinSquare(int dist, int regionId, int camChunkX, int camChunkY, int camChunkZ) {
-        return dist >= 0;
+        Region region = this.regions[regionId];
+        return Math.abs((region.rx << 3) + 4 - camChunkX) <= dist
+            && Math.abs((region.ry << 2) + 2 - camChunkY) <= dist
+            && Math.abs((region.rz << 3) + 4 - camChunkZ) <= dist;
     }
 
     public boolean isRegionInACameraAxis(int regionId, double camX, double camY, double camZ) {
-        return true;
+        Region region = this.regions[regionId];
+        return ((region.rx << 7) <= camX && camX <= ((region.rx + 1) << 7))
+            || ((region.ry << 6) <= camY && camY <= ((region.ry + 1) << 6))
+            || ((region.rz << 7) <= camZ && camZ <= ((region.rz + 1) << 7));
     }
 
     public long getRegionBufferAddress() {
@@ -225,7 +312,24 @@ public class RegionManager {
     }
 
     public void setRegionTransformId(int x, int y, int z, int id) {
-        // No-op placeholder for now.
+        if (id < 0 || id >= MAX_TRANSFORMATION_COUNT) {
+            throw new IllegalArgumentException("Transformation id out of bounds");
+        }
+
+        long regionKey = ChunkSectionPos.asLong(x, y, z);
+        int previousId = this.regionTransformationIdMapping.put(regionKey, id);
+        if (previousId == id) {
+            return;
+        }
+
+        int regionId = this.regionMap.get(regionKey);
+        if (regionId == -1) {
+            return;
+        }
+
+        Region region = this.regions[regionId];
+        region.transformationId = id;
+        this.markDirty(region);
     }
 
     private static class Region {

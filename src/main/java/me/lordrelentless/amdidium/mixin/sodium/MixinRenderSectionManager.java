@@ -122,18 +122,27 @@ public class MixinRenderSectionManager implements IAmdidiumWorldRendererGetter {
 
     @Inject(method = "renderLayer", at = @At("HEAD"), cancellable = true)
     public void renderLayer(ChunkRenderMatrices matrices, TerrainRenderPass pass, double x, double y, double z, CallbackInfo ci) {
-        if (Amdidium.IS_ENABLED) {
-            ci.cancel();
-            pass.startDrawing();
-
-            if (pass == DefaultTerrainRenderPasses.SOLID) {
-                renderer.renderFrame(viewport, matrices, x, y, z);
-            } else if (pass == DefaultTerrainRenderPasses.TRANSLUCENT) {
-                renderer.renderTranslucent();
-            }
-
-            pass.endDrawing();
+        if (!Amdidium.IS_ENABLED) {
+            return;
         }
+
+        boolean isAmdidiumPass = pass == DefaultTerrainRenderPasses.SOLID
+                || pass == DefaultTerrainRenderPasses.CUTOUT
+                || pass == DefaultTerrainRenderPasses.TRANSLUCENT;
+        if (!isAmdidiumPass) {
+            return;
+        }
+
+        ci.cancel();
+        pass.startDrawing();
+
+        if (pass == DefaultTerrainRenderPasses.SOLID) {
+            renderer.renderFrame(viewport, matrices, x, y, z);
+        } else if (pass == DefaultTerrainRenderPasses.TRANSLUCENT) {
+            renderer.renderTranslucent();
+        }
+
+        pass.endDrawing();
     }
 
     @Inject(method = "getDebugStrings", at = @At("HEAD"), cancellable = true)

@@ -176,15 +176,82 @@ public class RenderPipeline {
     public void renderFrame(Viewport frustum,
                             ChunkRenderMatrices crm,
                             double px, double py, double pz) {
-        int visibleRegions = 0;
         int regionSortSize = 0;
-        short[] regionMap = new short[sectionManager.getRegionManager().maxRegions()];
-        int[] visible = new int[sectionManager.getRegionManager().maxRegions()];
+        RegionManager regionManager = sectionManager.getRegionManager();
+        Vector3i chunkPosition = new Vector3i(
+            (int) java.lang.Math.floor(px) >> 4,
+            (int) java.lang.Math.floor(py) >> 4,
+            (int) java.lang.Math.floor(pz) >> 4
+        );
+
+        IntSortedSet visibleRegions = new IntAVLTreeSet();
+        for (int regionId = 0; regionId < regionManager.maxRegionIndex(); regionId++) {
+            if (!regionManager.regionExists(regionId)) {
+                continue;
+            }
+
+            if (regionManager.isRegionVisible(frustum, regionId)) {
+                int distance = regionManager.distance(regionId, chunkPosition.x, chunkPosition.y, chunkPosition.z);
+                visibleRegions.add((distance << 16) | regionId);
+                regionVisibilityTracker.set(regionId);
+
+                if (regionManager.isRegionInACameraAxis(regionId, px, py, pz)) {
+                    regionsToSort.add(regionId);
+                }
+            } else {
+                if (regionVisibilityTracker.get(regionId) && Amdidium.config.enable_temporal_coherence) {
+                    nglClearNamedBufferSubData(
+                            sectionVisibility.getId(),
+                            GL_R8UI,
+                            (long) regionId << 8,
+                            256,
+                            GL_RED_INTEGER,
+                            GL_UNSIGNED_BYTE,
+                            0
+                    );
+                }
+                regionVisibilityTracker.clear(regionId);
+            }
+        }
+
+        short[] regionMap = new short[visibleRegions.size()];
+        int visibleRegionCount = 0;
+        if (!visibleRegions.isEmpty()) {
+            long regionMapAddress = uploadStream.upload(sceneUniform, SCENE_SIZE, visibleRegions.size() * 2L);
+            for (int orderedRegion : visibleRegions) {
+                short regionId = (short) (orderedRegion & 0xFFFF);
+                regionMap[visibleRegionCount] = regionId;
+                MemoryUtil.memPutShort(regionMapAddress + (long) visibleRegionCount * 2, regionId);
+                visibleRegionCount++;
+            }
+        }
+
+        if (Amdidium.config.statistics_level != StatisticsLoggingLevel.NONE) {
+            stats.frustumCount = visibleRegionCount;
+        }
+
+        if (Amdidium.config.translucency_sorting_level == TranslucencySortingLevel.NONE) {
+            regionsToSort.clear();
+        }
+
+        regionSortSize = regionsToSort.size();
+        if (regionSortSize > 0) {
+            long sortListAddress = uploadStream.upload(regionSortingList, 0, regionSortSize * 2L);
+            for (int regionId : regionsToSort) {
+                MemoryUtil.memPutShort(sortListAddress, (short) regionId);
+                sortListAddress += 2;
+            }
+            regionsToSort.clear();
+        }
+
+        sectionManager.commitChanges();
+        uploadStream.commit();
+        TickableManager.TickAll();
 
         // Backend-specific draw path
         switch (backend) {
             case OPENGL -> renderFrameOpenGL(
-                    visibleRegions,
+                    visibleRegionCount,
                     regionSortSize,
                     regionMap,
                     0,

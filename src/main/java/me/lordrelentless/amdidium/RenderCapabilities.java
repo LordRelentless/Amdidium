@@ -23,6 +23,7 @@ public final class RenderCapabilities {
         public final boolean persistentBuffers;
         public final boolean bufferAddress;
         public final boolean gl45Compatible;
+        public final boolean extMeshShaders;
         public final String vendor;
         public final String renderer;
         public final String version;
@@ -36,6 +37,7 @@ public final class RenderCapabilities {
                             boolean persistentBuffers,
                             boolean bufferAddress,
                             boolean gl45Compatible,
+                            boolean extMeshShaders,
                             String vendor,
                             String renderer,
                             String version) {
@@ -48,6 +50,7 @@ public final class RenderCapabilities {
             this.persistentBuffers = persistentBuffers;
             this.bufferAddress = bufferAddress;
             this.gl45Compatible = gl45Compatible;
+            this.extMeshShaders = extMeshShaders;
             this.vendor = vendor;
             this.renderer = renderer;
             this.version = version;
@@ -55,6 +58,10 @@ public final class RenderCapabilities {
 
         public boolean supportsMeshPath() {
             return meshShaders && taskShaders;
+        }
+
+        public boolean supportsExtMeshPath() {
+            return extMeshShaders;
         }
 
         public boolean supportsGenericPath() {
@@ -79,17 +86,25 @@ public final class RenderCapabilities {
         boolean sparseBuffers = false;
         boolean persistentBuffers = false;
         boolean bufferAddress = false;
+        boolean extMeshShaders = false;
         try {
-            meshShaders = org.lwjgl.opengl.GL.getCapabilities().GL_NV_mesh_shader;
-            taskShaders = org.lwjgl.opengl.GL.getCapabilities().GL_NV_mesh_shader;
-            bindlessTextures = org.lwjgl.opengl.GL.getCapabilities().GL_NV_bindless_texture;
-            shaderBufferLoad = org.lwjgl.opengl.GL.getCapabilities().GL_NV_gpu_shader5 || org.lwjgl.opengl.GL.getCapabilities().GL_NV_shader_buffer_load;
-            shaderStorageBuffer = org.lwjgl.opengl.GL.getCapabilities().GL_NV_gpu_shader5;
-            sparseBuffers = org.lwjgl.opengl.GL.getCapabilities().GL_ARB_sparse_buffer || org.lwjgl.opengl.GL.getCapabilities().GL_ARB_buffer_storage;
-            persistentBuffers = org.lwjgl.opengl.GL.getCapabilities().GL_ARB_buffer_storage || org.lwjgl.opengl.GL.getCapabilities().GL_ARB_sparse_buffer;
-            bufferAddress = org.lwjgl.opengl.GL.getCapabilities().GL_NV_vertex_buffer_unified_memory || org.lwjgl.opengl.GL.getCapabilities().GL_ARB_buffer_storage;
+            meshShaders = caps.GL_NV_mesh_shader;
+            taskShaders = caps.GL_NV_mesh_shader;
+            bindlessTextures = caps.GL_NV_bindless_texture;
+            shaderBufferLoad = caps.GL_NV_gpu_shader5 && caps.GL_NV_shader_buffer_load;
+            shaderStorageBuffer = caps.GL_ARB_shader_storage_buffer_object;
+            sparseBuffers = caps.GL_ARB_sparse_buffer;
+            persistentBuffers = caps.GL_ARB_buffer_storage;
+            bufferAddress = caps.GL_NV_vertex_buffer_unified_memory;
         } catch (Throwable ignored) {
             // Fall back to minimal feature detection below.
+        }
+        int extensionCount = GL11.glGetInteger(org.lwjgl.opengl.GL30C.GL_NUM_EXTENSIONS);
+        for (int i = 0; i < extensionCount; i++) {
+            if ("GL_EXT_mesh_shader".equals(org.lwjgl.opengl.GL30C.glGetStringi(GL11.GL_EXTENSIONS, i))) {
+                extMeshShaders = true;
+                break;
+            }
         }
         boolean gl45Compatible = isGlVersionAtLeast(version, 4.5f);
 
@@ -103,6 +118,7 @@ public final class RenderCapabilities {
                 persistentBuffers,
                 bufferAddress,
                 gl45Compatible,
+                extMeshShaders,
                 vendor,
                 renderer,
                 version
@@ -124,7 +140,12 @@ public final class RenderCapabilities {
     }
 
     public static boolean isCompatible(Capabilities capabilities) {
-        return capabilities.gl45Compatible || capabilities.supportsMeshPath() || capabilities.supportsGenericPath();
+        return resolvePlatform(capabilities.vendor, capabilities) == Platform.NVIDIA
+            && capabilities.gl45Compatible
+            && capabilities.supportsMeshPath()
+            && capabilities.bindlessTextures
+            && capabilities.shaderBufferLoad
+            && capabilities.bufferAddress;
     }
 
     private static boolean isGlVersionAtLeast(String version, float minimum) {
